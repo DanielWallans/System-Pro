@@ -6,7 +6,11 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.net.URI;
+import java.net.*;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.concurrent.*;
 
 public class ConfigBancoDialog extends JDialog {
 
@@ -70,9 +74,21 @@ public class ConfigBancoDialog extends JDialog {
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.weightx = 0.7;
+        JPanel pnlHostHeader = new JPanel(new BorderLayout(4, 0));
+        pnlHostHeader.setOpaque(false);
+
         JLabel lblHost = new JLabel("Servidor / Host (IP ou Domínio):");
         lblHost.setFont(lblHost.getFont().deriveFont(Font.BOLD, 12f));
-        pnlForm.add(lblHost, gbc);
+
+        JButton btnBuscarRede = new JButton("🔍 Buscar na Rede");
+        btnBuscarRede.setFont(btnBuscarRede.getFont().deriveFont(10.5f));
+        btnBuscarRede.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnBuscarRede.setToolTipText("Escanear a rede local e localizar o computador do servidor MySQL automaticamente");
+        btnBuscarRede.addActionListener(e -> buscarServidorNaRedeAsync(btnBuscarRede));
+
+        pnlHostHeader.add(lblHost, BorderLayout.WEST);
+        pnlHostHeader.add(btnBuscarRede, BorderLayout.EAST);
+        pnlForm.add(pnlHostHeader, gbc);
 
         gbc.gridx = 1;
         gbc.weightx = 0.3;
@@ -273,6 +289,7 @@ public class ConfigBancoDialog extends JDialog {
                 }
                 try {
                     ConnectionFactory.salvarConfiguracoes(host, porta, banco, usuario, senha);
+                    com.loja.service.TerminalService.getInstance().atualizarIpLocal();
                     return ConnectionFactory.criarTabela();
                 } catch (Exception e) {
                     erroMsg = e.getMessage();
@@ -308,6 +325,124 @@ public class ConfigBancoDialog extends JDialog {
             }
         };
         worker.execute();
+    }
+
+    private void buscarServidorNaRedeAsync(JButton btnBuscarRede) {
+        btnBuscarRede.setEnabled(false);
+        btnBuscarRede.setText("Buscando...");
+        lblStatus.setText("Varrendo a rede local procurando servidor MySQL...");
+        lblStatus.setForeground(new Color(241, 196, 15));
+
+        SwingWorker<List<String>, Void> worker = new SwingWorker<List<String>, Void>() {
+            @Override
+            protected List<String> doInBackground() {
+                return escanearServidoresNaRede();
+            }
+
+            @Override
+            protected void done() {
+                btnBuscarRede.setEnabled(true);
+                btnBuscarRede.setText("🔍 Buscar na Rede");
+                try {
+                    List<String> servidores = get();
+                    if (servidores != null && !servidores.isEmpty()) {
+                        if (servidores.size() == 1) {
+                            String encontrado = servidores.get(0);
+                            txtHost.setText(encontrado);
+                            lblStatus.setText("Servidor encontrado em: " + encontrado);
+                            lblStatus.setForeground(new Color(39, 174, 96));
+                        } else {
+                            String escolha = (String) JOptionPane.showInputDialog(
+                                    ConfigBancoDialog.this,
+                                    "Foram encontrados múltiplos servidores na rede.\nEscolha qual conectar:",
+                                    "Servidores Encontrados",
+                                    JOptionPane.QUESTION_MESSAGE,
+                                    null,
+                                    servidores.toArray(),
+                                    servidores.get(0));
+                            if (escolha != null) {
+                                txtHost.setText(escolha);
+                                lblStatus.setText("Servidor selecionado: " + escolha);
+                                lblStatus.setForeground(new Color(39, 174, 96));
+                            }
+                        }
+                    } else {
+                        lblStatus.setText("Nenhum servidor MySQL detectado automaticamente.");
+                        lblStatus.setForeground(new Color(231, 76, 60));
+                        JOptionPane.showMessageDialog(ConfigBancoDialog.this,
+                                "Nenhum servidor foi detectado automaticamente na rede.\n\n" +
+                                        "Dicas para conectar:\n" +
+                                        "1. Verifique se o MySQL está rodando no computador servidor (principal).\n" +
+                                        "2. No computador servidor, execute o arquivo 'liberar_firewall_rede.bat' como Administrador.\n" +
+                                        "3. Digite o IP do servidor manualmente no campo acima (Ex: 192.168.18.2).",
+                                "Busca na Rede Local", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                } catch (Exception ex) {
+                    lblStatus.setText("Erro ao escanear rede: " + ex.getMessage());
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    private List<String> escanearServidoresNaRede() {
+        List<String> encontrados = new CopyOnWriteArrayList<>();
+        try {
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            ExecutorService pool = Executors.newFixedThreadPool(40);
+            List<InetAddress> ipsLocais = new ArrayList<>();
+
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface ni = interfaces.nextElement();
+                if (ni.isLoopback() || !ni.isUp() || com.loja.util.NetworkUtils.isTailscaleOrVirtualInterface(ni)) continue;
+                for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
+                    InetAddress addr = ia.getAddress();
+                    if (addr instanceof Inet4Address && !com.loja.util.NetworkUtils.isIgnoredAddress(addr)) {
+                        ipsLocais.add(addr);
+                    }
+                }
+            }
+
+            if (ipsLocais.isEmpty()) {
+                interfaces = NetworkInterface.getNetworkInterfaces();
+                while (interfaces.hasMoreElements()) {
+                    NetworkInterface ni = interfaces.nextElement();
+                    if (ni.isLoopback() || !ni.isUp()) continue;
+                    for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
+                        InetAddress addr = ia.getAddress();
+                        if (addr instanceof Inet4Address && !com.loja.util.NetworkUtils.isIgnoredAddress(addr)) {
+                            ipsLocais.add(addr);
+                        }
+                    }
+                }
+            }
+
+            for (InetAddress localIp : ipsLocais) {
+                byte[] raw = localIp.getAddress();
+                for (int i = 1; i <= 254; i++) {
+                    final int host = i;
+                    pool.execute(() -> {
+                        try {
+                            byte[] target = new byte[] { raw[0], raw[1], raw[2], (byte) host };
+                            InetAddress dest = InetAddress.getByAddress(target);
+                            String ipStr = dest.getHostAddress();
+                            try (Socket s = new Socket()) {
+                                s.connect(new InetSocketAddress(ipStr, 3306), 400);
+                                if (!encontrados.contains(ipStr)) {
+                                    encontrados.add(ipStr);
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    });
+                }
+            }
+
+            pool.shutdown();
+            pool.awaitTermination(3, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            System.err.println("[REDE SCAN] Erro ao varrer rede: " + e.getMessage());
+        }
+        return encontrados;
     }
 
     private void exibirAjuda() {

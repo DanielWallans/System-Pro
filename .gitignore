@@ -42,3 +42,4 @@ gerador_executavel/staging/
 .DS_Store
 Thumbs.db
 .teste_perm
+database.properties

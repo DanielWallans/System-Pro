@@ -4,6 +4,8 @@ import com.loja.model.SessaoUsuario;
 import com.loja.model.Usuario;
 import com.loja.repository.ConnectionFactory;
 import com.loja.repository.UsuarioDAO;
+import com.loja.service.TerminalService;
+import com.loja.util.NetworkUtils;
 import com.loja.view.theme.ThemeTokens;
 import com.loja.view.theme.UIComponents;
 import com.loja.view.theme.UITheme;
@@ -220,7 +222,16 @@ public class LoginDialog extends JDialog {
     }
 
     private String obterTextoServidorAtual() {
-        return "🌐 Servidor: " + ConnectionFactory.getHost() + ":" + ConnectionFactory.getPort() +
-                (ConnectionFactory.isSsl() ? " (SSL)" : "");
+        String host = ConnectionFactory.getHost();
+        String porta = ConnectionFactory.getPort();
+        String sslStr = ConnectionFactory.isSsl() ? " (SSL)" : "";
+        if (NetworkUtils.isEstaMaquinaMatriz()) {
+            String ipMatriz = NetworkUtils.obterIpMatriz(host);
+            return "🌐 Servidor Matriz (Local) • IP na Rede: " + ipMatriz + ":" + porta + sslStr;
+        } else {
+            String ipMatriz = NetworkUtils.obterIpMatriz(host);
+            String meuIp = TerminalService.getInstance().getIp();
+            return "🌐 Conectado à Matriz: " + ipMatriz + ":" + porta + " • IP Local: " + meuIp + sslStr;
+        }
     }
 }

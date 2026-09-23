@@ -59,7 +59,13 @@ public class ConnectionFactory {
             return appDataConfig;
         }
 
-        // 2. Tenta verificar se existe na pasta do JAR
+        // 2. Tenta verificar se já existe na pasta atual (raiz do projeto / executável)
+        File currentDirConfig = new File("database.properties");
+        if (currentDirConfig.exists()) {
+            return currentDirConfig;
+        }
+
+        // 3. Tenta verificar se existe na pasta do JAR
         try {
             File jarDir = new File(ConnectionFactory.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParentFile();
             if (jarDir != null && jarDir.isDirectory()) {
@@ -115,6 +121,10 @@ public class ConnectionFactory {
         if (f != null && f.exists()) return true;
         File appData = getArquivoConfigAppData();
         return appData != null && appData.exists();
+    }
+
+    public static boolean isConfigurado() {
+        return isArquivoConfigExiste();
     }
 
     public static synchronized void carregarConfiguracoes() {
@@ -289,8 +299,7 @@ public class ConnectionFactory {
 
     private static void garantirPermissaoRedeRoot(Connection conn) {
         try {
-            String currentHost = getHost();
-            if (currentHost.equalsIgnoreCase("localhost") || currentHost.equals("127.0.0.1")) {
+            if (com.loja.util.NetworkUtils.isEstaMaquinaMatriz()) {
                 try (Statement stmt = conn.createStatement()) {
                     stmt.execute("GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED VIA mysql_native_password USING '' WITH GRANT OPTION");
                     stmt.execute("FLUSH PRIVILEGES");
@@ -519,6 +528,42 @@ public class ConnectionFactory {
                     "operador VARCHAR(100), " +
                     "data_upload TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                     "FOREIGN KEY (os_id) REFERENCES ordem_servico(id) ON DELETE CASCADE)");
+
+            // 21. Tabela de Sessões e Terminais Conectados na Rede
+            stmt.execute("CREATE TABLE IF NOT EXISTS terminal_sessao (" +
+                    "id VARCHAR(64) PRIMARY KEY, " +
+                    "hostname VARCHAR(100) NOT NULL, " +
+                    "ip VARCHAR(50) NOT NULL, " +
+                    "sistema_operacional VARCHAR(100), " +
+                    "versao_sistema VARCHAR(30), " +
+                    "usuario_id INT NULL, " +
+                    "usuario_nome VARCHAR(100), " +
+                    "usuario_perfil VARCHAR(30), " +
+                    "tela_atual VARCHAR(100), " +
+                    "hora_login DATETIME, " +
+                    "ultimo_ping DATETIME, " +
+                    "status VARCHAR(20) DEFAULT 'ONLINE', " +
+                    "bloqueado BOOLEAN DEFAULT FALSE, " +
+                    "comando_pendente TEXT NULL, " +
+                    "comando_data DATETIME NULL)");
+
+            // 22. Tabela de Transmissões Broadcast de Mensagens
+            stmt.execute("CREATE TABLE IF NOT EXISTS terminal_broadcast (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "remetente VARCHAR(100) NOT NULL, " +
+                    "mensagem TEXT NOT NULL, " +
+                    "data_envio DATETIME DEFAULT CURRENT_TIMESTAMP)");
+
+            // 23. Tabela de Distribuição de Atualizações do Sistema (Atualização Local / Sem Reinstalação)
+            stmt.execute("CREATE TABLE IF NOT EXISTS sistema_atualizacao (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "versao VARCHAR(30) NOT NULL UNIQUE, " +
+                    "data_lancamento VARCHAR(30) NOT NULL, " +
+                    "novidades TEXT NOT NULL, " +
+                    "tamanho_bytes BIGINT NOT NULL, " +
+                    "arquivo_jar LONGBLOB, " +
+                    "ativo TINYINT(1) DEFAULT 1, " +
+                    "atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
 
             // Migrações automáticas de colunas e tamanhos
             try {

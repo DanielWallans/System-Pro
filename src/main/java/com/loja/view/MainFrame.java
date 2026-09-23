@@ -18,6 +18,7 @@ import com.loja.view.theme.UIComponents;
 import com.loja.view.theme.UITheme;
 import com.loja.service.update.UpdateInfo;
 import com.loja.service.update.UpdateService;
+import com.loja.service.TerminalService;
 import com.loja.view.dialogs.AtualizacaoDialog;
 
 import javax.swing.*;
@@ -50,6 +51,7 @@ public class MainFrame extends JFrame {
     private PDVPanel pdvPanel;
     private EstoquePanel estoquePanel;
     private CaixaPanel caixaPanel;
+    private TerminaisPanel terminaisPanel;
 
     private JLabel lblUsuarioLogado;
     private JButton btnGerenciarUsuarios;
@@ -81,6 +83,7 @@ public class MainFrame extends JFrame {
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent e) {
+                TerminalService.getInstance().encerrarSessao();
                 com.loja.service.AutoBackupService.getInstance().executarBackupAoEncerrar(MainFrame.this);
             }
         });
@@ -92,7 +95,12 @@ public class MainFrame extends JFrame {
         aplicarPermissoesPerfil();
         configurarAtalhosGlobais();
         iniciarVerificacaoAtualizacaoSilenciosa();
+        UpdateService.sincronizarVersaoComBancoSeNecessario();
         verificarLembreteBackupInicial();
+
+        TerminalService.getInstance().setJanelaPrincipal(this);
+        TerminalService.getInstance().setCallbackLogoutRemoto(this::executarLogoutRemoto);
+        TerminalService.getInstance().iniciar();
     }
 
     private void initComponents() {
@@ -222,6 +230,7 @@ public class MainFrame extends JFrame {
         osPanel = new OrdemServicoPanel(this, osDAO, clienteDAO, equipDAO, produtoDAO, caixaService);
         estoquePanel = new EstoquePanel(this, produtoDAO);
         caixaPanel = new CaixaPanel(this, caixaService, caixaDAO);
+        terminaisPanel = new TerminaisPanel(this, new TerminalDAO());
 
         cardsPanel.add(dashboardPanel, "DASHBOARD");
         cardsPanel.add(pdvPanel, "PDV");
@@ -230,6 +239,7 @@ public class MainFrame extends JFrame {
         cardsPanel.add(osPanel, "OS");
         cardsPanel.add(estoquePanel, "ESTOQUE");
         cardsPanel.add(caixaPanel, "CAIXA");
+        cardsPanel.add(terminaisPanel, "TERMINAIS");
 
         add(cardsPanel, BorderLayout.CENTER);
 
@@ -291,6 +301,8 @@ public class MainFrame extends JFrame {
             adicionarBotaoNavegacao(sidebar, "Estoque de Peças", "ESTOQUE");
             sidebar.add(Box.createVerticalStrut(4));
             adicionarBotaoNavegacao(sidebar, "Caixa & Finanças", "CAIXA");
+            sidebar.add(Box.createVerticalStrut(4));
+            adicionarBotaoNavegacao(sidebar, "Terminais da Rede", "TERMINAIS");
             selecionarAba("DASHBOARD");
 
         } else if (isTecnico) {
@@ -348,6 +360,7 @@ public class MainFrame extends JFrame {
         this.abaAtiva = cardName;
         cardLayout.show(cardsPanel, cardName);
         aplicarEstiloBotoesNav();
+        TerminalService.getInstance().setTelaAtual(cardName);
         recarregarTodasAsAbas();
     }
 
@@ -440,6 +453,7 @@ public class MainFrame extends JFrame {
         osPanel = new OrdemServicoPanel(this, osDAO, clienteDAO, equipDAO, produtoDAO, caixaService);
         estoquePanel = new EstoquePanel(this, produtoDAO);
         caixaPanel = new CaixaPanel(this, caixaService, caixaDAO);
+        terminaisPanel = new TerminaisPanel(this, new TerminalDAO());
 
         cardsPanel.add(dashboardPanel, "DASHBOARD");
         cardsPanel.add(pdvPanel, "PDV");
@@ -448,6 +462,7 @@ public class MainFrame extends JFrame {
         cardsPanel.add(osPanel, "OS");
         cardsPanel.add(estoquePanel, "ESTOQUE");
         cardsPanel.add(caixaPanel, "CAIXA");
+        cardsPanel.add(terminaisPanel, "TERMINAIS");
 
         if (osPanel != null) {
             osPanel.aplicarPermissoesPerfil();
@@ -470,6 +485,9 @@ public class MainFrame extends JFrame {
         estoquePanel.recarregarTabela();
         caixaPanel.recarregarDados();
         pdvPanel.atualizarStatusCaixa();
+        if (terminaisPanel != null && "TERMINAIS".equals(abaAtiva)) {
+            terminaisPanel.recarregarDados();
+        }
     }
 
     private void abrirGerenciadorUsuarios() {
@@ -488,15 +506,31 @@ public class MainFrame extends JFrame {
                 "Confirmar Saída", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
 
         if (opt == JOptionPane.YES_OPTION) {
+            TerminalService.getInstance().encerrarSessao();
             SessaoUsuario.getInstancia().encerrarSessao();
             LoginDialog login = new LoginDialog(this, usuarioDAO);
             login.setVisible(true);
 
             if (login.isAutenticado()) {
+                TerminalService.getInstance().iniciar();
                 aplicarPermissoesPerfil();
             } else {
                 System.exit(0);
             }
+        }
+    }
+
+    public void executarLogoutRemoto(String motivo) {
+        TerminalService.getInstance().encerrarSessao();
+        SessaoUsuario.getInstancia().encerrarSessao();
+        LoginDialog login = new LoginDialog(this, usuarioDAO);
+        login.setVisible(true);
+
+        if (login.isAutenticado()) {
+            TerminalService.getInstance().iniciar();
+            aplicarPermissoesPerfil();
+        } else {
+            System.exit(0);
         }
     }
 

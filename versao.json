@@ -1,6 +1,6 @@
 {
-    "versao": "1.2.6",
-    "data": "18/09/2026",
-    "novidades": "- Novo Sistema de Backup Automatico com Protecao Anti-Apagao em tempo real\n- Gravacao instantanea em segundo plano apos Vendas PDV e Ordens de Servico (sem travar a tela)\n- Lembrete inteligente de backup ao iniciar o sistema caso nao haja copia recente no dia\n- Rotina de fechamento seguro com backup automatico ao encerrar o sistema\n- Limpeza automatica de arquivos antigos e suporte a copia secundaria (Pendrive / Google Drive / OneDrive)\n- Correcao de integridade para fotos e evidencias tecnicas no backup",
+    "versao": "1.2.7",
+    "data": "22/09/2026",
+    "novidades": "- Atualizacao 100% Automatica via Rede Local / Banco de Dados (sem reinstalacao manual em computadores clientes)\n- Notificacao instantanea na tela com descricao das novidades e botao de atualizacao em 1 clique\n- Central de Gerenciamento de Terminais e Maquinas da Rede (monitoramento em tempo real de operadores, telas ativas e status)\n- Descoberta inteligente de IP da Rede Local / Matriz (filtro automatico de adaptadores virtuais e Tailscale)\n- Transmissao de avisos Broadcast para toda a loja e comandos remotos para os terminais\n- Novo botao de Notificar Atualizacao e Publicar Versao no Banco de Dados diretamente pela Matriz",
     "download_url": "https://raw.githubusercontent.com/DanielWallans/SistemaLoja/master/gerador_executavel/aplicacao_pronta/SistemaLoja.jar"
 }
