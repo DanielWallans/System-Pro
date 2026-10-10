@@ -1,7 +1,7 @@
 package com.loja.view;
 
+import com.loja.model.CaixaSessao;
 import com.loja.model.ItemVenda;
-import com.loja.model.PagamentoItem;
 import com.loja.model.Produto;
 import com.loja.model.VendaPDV;
 import com.loja.repository.CaixaDAO;
@@ -11,17 +11,21 @@ import com.loja.service.CaixaService;
 import com.loja.view.dialogs.AberturaCaixaDialog;
 import com.loja.view.dialogs.FechamentoCegoDialog;
 import com.loja.view.dialogs.PagamentoPDVDialog;
-
+import com.loja.view.dialogs.ProdutoDialog;
+import com.loja.view.theme.ThemeTokens;
 import com.loja.view.theme.UIComponents;
 import com.loja.view.theme.UITheme;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.time.LocalDateTime;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,10 +44,17 @@ public class PDVPanel extends JPanel {
     private JButton btnAdicionarItem;
     private JButton btnBuscarEstoque;
 
+    // Vitrine Dinâmica de Peças & Produtos
+    private JPanel pnlCardsVitrine;
+    private JTextField txtFiltroVitrine;
+    private JLabel lblVitrineContador;
+    private List<Produto> produtosVitrine = new ArrayList<>();
+
     // Carrinho
     private final List<ItemVenda> carrinho = new ArrayList<>();
     private DefaultTableModel modelCarrinho;
     private JTable tabelaCarrinho;
+    private JLabel lblItensCarrinhoContador;
 
     // Totais e Fechamento
     private JLabel lblStatusCaixa;
@@ -67,30 +78,43 @@ public class PDVPanel extends JPanel {
 
         initComponents();
         configurarAtalhosTeclado();
+        recarregarVitrineProdutos();
     }
 
     private void initComponents() {
-        // 1. Cabeçalho do PDV
+        ThemeTokens t = UITheme.tokens();
+
+        // 1. Cabeçalho do PDV (Design moderno e limpo)
         JPanel pnlHeader = new JPanel(new BorderLayout(UITheme.SPACE_12, 0));
         pnlHeader.setOpaque(false);
         pnlHeader.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, UITheme.tokens().getBorderSubtle()),
+                BorderFactory.createMatteBorder(0, 0, 1, 0, t.getBorderSubtle()),
                 BorderFactory.createEmptyBorder(0, 0, UITheme.SPACE_12, 0)));
 
-        JPanel pnlTitulo = new JPanel(new FlowLayout(FlowLayout.LEFT, UITheme.SPACE_8, 0));
-        pnlTitulo.setOpaque(false);
-        JLabel lblTit = new JLabel("PDV de Balcão • Venda Rápida");
-        lblTit.setFont(UITheme.FONT_TITLE);
-        pnlTitulo.add(lblTit);
+        JPanel pnlTituloBox = new JPanel(new BorderLayout(0, UITheme.SPACE_4));
+        pnlTituloBox.setOpaque(false);
 
-        JPanel pnlStatusCaixa = new JPanel(new FlowLayout(FlowLayout.RIGHT, UITheme.SPACE_8, 0));
+        JLabel lblTit = new JLabel("PDV de Balcão • Frente de Caixa");
+        lblTit.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        lblTit.setForeground(t.getTextPrimary());
+
+        JLabel lblSub = new JLabel("Venda rápida de peças, produtos e acessórios para clientes de balcão.");
+        lblSub.setFont(UITheme.FONT_SUBTITLE);
+        lblSub.setForeground(t.getTextSecondary());
+
+        pnlTituloBox.add(lblTit, BorderLayout.NORTH);
+        pnlTituloBox.add(lblSub, BorderLayout.SOUTH);
+
+        // Badge Status Caixa
+        JPanel pnlStatusCaixa = new JPanel(new FlowLayout(FlowLayout.RIGHT, UITheme.SPACE_12, 0));
         pnlStatusCaixa.setOpaque(false);
+
         lblStatusCaixa = new JLabel("● Caixa Aberto");
         lblStatusCaixa.setFont(UITheme.FONT_SUBTITLE);
         lblStatusCaixa.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        lblStatusCaixa.addMouseListener(new java.awt.event.MouseAdapter() {
+        lblStatusCaixa.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
+            public void mouseClicked(MouseEvent e) {
                 alternarAcaoCaixa();
             }
         });
@@ -103,20 +127,19 @@ public class PDVPanel extends JPanel {
         pnlStatusCaixa.add(btnAcaoCaixa);
         atualizarStatusCaixa();
 
-        pnlHeader.add(pnlTitulo, BorderLayout.WEST);
+        pnlHeader.add(pnlTituloBox, BorderLayout.WEST);
         pnlHeader.add(pnlStatusCaixa, BorderLayout.EAST);
         add(pnlHeader, BorderLayout.NORTH);
 
-        // 2. Área Central (Esquerda: Entrada + Vitrine + Carrinho | Direita: Totais +
-        // Pagamento)
+        // 2. Área Central (Esquerda: Entrada + Vitrine Dinâmica + Carrinho | Direita: Totais + Pagamento)
         JPanel pnlCentro = new JPanel(new BorderLayout(UITheme.SPACE_16, UITheme.SPACE_16));
         pnlCentro.setOpaque(false);
 
         // Lado Esquerdo
-        JPanel pnlEsquerda = new JPanel(new BorderLayout(UITheme.SPACE_12, UITheme.SPACE_12));
+        JPanel pnlEsquerda = new JPanel(new BorderLayout(0, UITheme.SPACE_12));
         pnlEsquerda.setOpaque(false);
 
-        // Barra de Leitor de Código de Barras / Busca
+        // 2.1 Barra de Leitor de Código de Barras / Entrada Rápida
         JPanel pnlBarraEntrada = new JPanel(new BorderLayout(UITheme.SPACE_8, UITheme.SPACE_8)) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -134,9 +157,9 @@ public class PDVPanel extends JPanel {
         pnlBarraEntrada.setBorder(BorderFactory.createEmptyBorder(UITheme.SPACE_12, UITheme.SPACE_16, UITheme.SPACE_12,
                 UITheme.SPACE_16));
 
-        JLabel lblEntradaTit = new JLabel("LEITOR DE CÓDIGO DE BARRAS / BUSCA DE PRODUTO");
+        JLabel lblEntradaTit = new JLabel("⚡ LEITOR DE CÓDIGO DE BARRAS / ENTRADA RÁPIDA DE ITENS");
         lblEntradaTit.setFont(UITheme.FONT_SMALL);
-        lblEntradaTit.setForeground(UITheme.tokens().getTextSecondary());
+        lblEntradaTit.setForeground(t.getTextSecondary());
 
         JPanel pnlCamposEntrada = new JPanel(new BorderLayout(UITheme.SPACE_8, 0));
         pnlCamposEntrada.setOpaque(false);
@@ -144,7 +167,7 @@ public class PDVPanel extends JPanel {
         txtEntradaCodigoOuNome = new JTextField();
         txtEntradaCodigoOuNome.setFont(UITheme.FONT_BODY);
         txtEntradaCodigoOuNome.putClientProperty("JTextField.placeholderText",
-                "Bipe o código de barras ou digite o código/nome e tecle Enter...");
+                "Bipe o código de barras ou digite o código/nome da peça e tecle Enter...");
 
         JPanel pnlQtdEAdicionar = new JPanel(new FlowLayout(FlowLayout.RIGHT, UITheme.SPACE_8, 0));
         pnlQtdEAdicionar.setOpaque(false);
@@ -153,11 +176,11 @@ public class PDVPanel extends JPanel {
         spQuantidade.setFont(UITheme.FONT_BODY);
 
         btnAdicionarItem = UIComponents.criarBotaoPrimario("Adicionar [Enter]");
-        btnBuscarEstoque = UIComponents.criarBotaoSecundario("Buscar [F6]");
+        btnBuscarEstoque = UIComponents.criarBotaoSecundario("Buscar Catálogo [F6]");
 
         JLabel lblQtd = new JLabel("Qtd:");
         lblQtd.setFont(UITheme.FONT_CAPTION);
-        lblQtd.setForeground(UITheme.tokens().getTextSecondary());
+        lblQtd.setForeground(t.getTextSecondary());
         pnlQtdEAdicionar.add(lblQtd);
         pnlQtdEAdicionar.add(spQuantidade);
         pnlQtdEAdicionar.add(btnAdicionarItem);
@@ -169,35 +192,95 @@ public class PDVPanel extends JPanel {
         pnlBarraEntrada.add(lblEntradaTit, BorderLayout.NORTH);
         pnlBarraEntrada.add(pnlCamposEntrada, BorderLayout.CENTER);
 
-        pnlEsquerda.add(pnlBarraEntrada, BorderLayout.NORTH);
-
-        // Vitrine de Acessórios Rápidos
-        JPanel pnlVitrineBox = new JPanel(new BorderLayout(0, UITheme.SPACE_8));
+        // 2.2 Vitrine Dinâmica de Peças & Produtos em Estoque
+        JPanel pnlVitrineBox = new JPanel(new BorderLayout(0, UITheme.SPACE_8)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(UITheme.tokens().getBgCard());
+                g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+                g2.setColor(UITheme.tokens().getBorderSubtle());
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
         pnlVitrineBox.setOpaque(false);
+        pnlVitrineBox.setBorder(BorderFactory.createEmptyBorder(10, 14, 10, 14));
 
-        JLabel lblVitrineTit = new JLabel("ACESSÓRIOS RÁPIDOS DE BALCÃO");
+        // Barra de Topo da Vitrine (Título + Contador + Filtro Rápido + Ação Novo)
+        JPanel pnlVitrineHeader = new JPanel(new BorderLayout(UITheme.SPACE_8, 0));
+        pnlVitrineHeader.setOpaque(false);
+
+        JPanel pnlVitrineTitEsquerda = new JPanel(new FlowLayout(FlowLayout.LEFT, UITheme.SPACE_8, 0));
+        pnlVitrineTitEsquerda.setOpaque(false);
+
+        JLabel lblVitrineTit = new JLabel("🏷️ CATÁLOGO RÁPIDO DE PEÇAS & PRODUTOS");
         lblVitrineTit.setFont(UITheme.FONT_SMALL);
-        lblVitrineTit.setForeground(UITheme.tokens().getTextSecondary());
-        pnlVitrineBox.add(lblVitrineTit, BorderLayout.NORTH);
+        lblVitrineTit.setForeground(t.getTextPrimary());
 
-        JPanel pnlVitrine = new JPanel(new FlowLayout(FlowLayout.LEFT, UITheme.SPACE_8, UITheme.SPACE_4));
-        pnlVitrine.setOpaque(false);
+        lblVitrineContador = new JLabel("(Carregando...)");
+        lblVitrineContador.setFont(UITheme.FONT_CAPTION);
+        lblVitrineContador.setForeground(t.getTextSecondary());
 
-        adicionarBotaoAcessorioRapido(pnlVitrine, "Película 3D", 25.00);
-        adicionarBotaoAcessorioRapido(pnlVitrine, "Película Cerâmica", 35.00);
-        adicionarBotaoAcessorioRapido(pnlVitrine, "Película Privacidade", 45.00);
-        adicionarBotaoAcessorioRapido(pnlVitrine, "Cabo USB-C Turbo", 30.00);
-        adicionarBotaoAcessorioRapido(pnlVitrine, "Cabo Lightning iPhone", 35.00);
-        adicionarBotaoAcessorioRapido(pnlVitrine, "Fonte 20W USB-C", 65.00);
-        adicionarBotaoAcessorioRapido(pnlVitrine, "Fone de Ouvido", 35.00);
-        adicionarBotaoAcessorioRapido(pnlVitrine, "Capinha Silicone", 35.00);
-        pnlVitrineBox.add(pnlVitrine, BorderLayout.CENTER);
+        pnlVitrineTitEsquerda.add(lblVitrineTit);
+        pnlVitrineTitEsquerda.add(lblVitrineContador);
 
-        // Tabela do Carrinho
-        JPanel pnlTabelaBox = new JPanel(new BorderLayout(UITheme.SPACE_8, UITheme.SPACE_8));
+        JPanel pnlVitrineAcoes = new JPanel(new FlowLayout(FlowLayout.RIGHT, UITheme.SPACE_8, 0));
+        pnlVitrineAcoes.setOpaque(false);
+
+        txtFiltroVitrine = new JTextField(12);
+        txtFiltroVitrine.setFont(UITheme.FONT_CAPTION);
+        txtFiltroVitrine.putClientProperty("JTextField.placeholderText", "Filtrar catálogo...");
+        txtFiltroVitrine.getDocument().addDocumentListener(new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent e) { renderizarCardsVitrine(); }
+            @Override public void removeUpdate(DocumentEvent e) { renderizarCardsVitrine(); }
+            @Override public void changedUpdate(DocumentEvent e) { renderizarCardsVitrine(); }
+        });
+
+        JButton btnNovaPeca = UIComponents.criarBotaoPrimario("+ Nova Peça/Produto", this::abrirNovoProdutoDialog);
+        btnNovaPeca.setFont(UITheme.FONT_SMALL);
+        btnNovaPeca.setPreferredSize(new Dimension(150, 28));
+
+        JButton btnAtualizarVitrine = UIComponents.criarBotaoSecundario("🔄 Atualizar", this::recarregarVitrineProdutos);
+        btnAtualizarVitrine.setFont(UITheme.FONT_SMALL);
+        btnAtualizarVitrine.setPreferredSize(new Dimension(95, 28));
+
+        pnlVitrineAcoes.add(txtFiltroVitrine);
+        pnlVitrineAcoes.add(btnNovaPeca);
+        pnlVitrineAcoes.add(btnAtualizarVitrine);
+
+        pnlVitrineHeader.add(pnlVitrineTitEsquerda, BorderLayout.WEST);
+        pnlVitrineHeader.add(pnlVitrineAcoes, BorderLayout.EAST);
+        pnlVitrineBox.add(pnlVitrineHeader, BorderLayout.NORTH);
+
+        // Container horizontal de cards
+        pnlCardsVitrine = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
+        pnlCardsVitrine.setOpaque(false);
+
+        JScrollPane scrollVitrine = new JScrollPane(pnlCardsVitrine);
+        scrollVitrine.setOpaque(false);
+        scrollVitrine.getViewport().setOpaque(false);
+        scrollVitrine.setBorder(null);
+        scrollVitrine.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
+        scrollVitrine.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scrollVitrine.setPreferredSize(new Dimension(0, 74));
+        scrollVitrine.getHorizontalScrollBar().setUnitIncrement(30);
+
+        // Suporte a rolagem horizontal com a roda do mouse
+        scrollVitrine.addMouseWheelListener(e -> {
+            JScrollBar hBar = scrollVitrine.getHorizontalScrollBar();
+            hBar.setValue(hBar.getValue() + e.getWheelRotation() * 38);
+        });
+
+        pnlVitrineBox.add(scrollVitrine, BorderLayout.CENTER);
+
+        // 2.3 Tabela do Carrinho de Compras
+        JPanel pnlTabelaBox = new JPanel(new BorderLayout(0, UITheme.SPACE_8));
         pnlTabelaBox.setOpaque(false);
 
-        String[] colunas = { "Item #", "Cód / ID", "Descrição do Produto", "Qtd", "Preço Unit. (R$)", "Subtotal (R$)" };
+        String[] colunas = { "Item #", "Cód / ID", "Descrição do Produto ou Peça", "Qtd", "Preço Unit. (R$)", "Subtotal (R$)" };
         modelCarrinho = new DefaultTableModel(colunas, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -206,36 +289,52 @@ public class PDVPanel extends JPanel {
         };
 
         tabelaCarrinho = new JTable(modelCarrinho);
+        tabelaCarrinho.setRowHeight(32);
         tabelaCarrinho.getColumnModel().getColumn(0).setPreferredWidth(55);
         tabelaCarrinho.getColumnModel().getColumn(1).setPreferredWidth(85);
-        tabelaCarrinho.getColumnModel().getColumn(2).setPreferredWidth(260);
+        tabelaCarrinho.getColumnModel().getColumn(2).setPreferredWidth(280);
         tabelaCarrinho.getColumnModel().getColumn(3).setPreferredWidth(50);
-        tabelaCarrinho.getColumnModel().getColumn(4).setPreferredWidth(100);
-        tabelaCarrinho.getColumnModel().getColumn(5).setPreferredWidth(110);
+        tabelaCarrinho.getColumnModel().getColumn(4).setPreferredWidth(105);
+        tabelaCarrinho.getColumnModel().getColumn(5).setPreferredWidth(115);
 
         UIComponents.formatarTabelaModerna(tabelaCarrinho, -1);
+
+        JScrollPane scrollTabela = new JScrollPane(tabelaCarrinho);
+        scrollTabela.setBorder(BorderFactory.createLineBorder(t.getBorderSubtle(), 1));
+
+        // Rodapé da Tabela do Carrinho
+        JPanel pnlCarrinhoRodape = new JPanel(new BorderLayout());
+        pnlCarrinhoRodape.setOpaque(false);
+
+        lblItensCarrinhoContador = new JLabel("🛒 Carrinho Vazio • 0 itens adicionados");
+        lblItensCarrinhoContador.setFont(UITheme.FONT_SMALL);
+        lblItensCarrinhoContador.setForeground(t.getTextSecondary());
+        pnlCarrinhoRodape.add(lblItensCarrinhoContador, BorderLayout.WEST);
 
         JPanel pnlCarrinhoAcoes = new JPanel(new FlowLayout(FlowLayout.RIGHT, UITheme.SPACE_8, 0));
         pnlCarrinhoAcoes.setOpaque(false);
         JButton btnRemoverItem = UIComponents.criarBotaoSecundario("Remover Item [Del]");
-        JButton btnLimparCarrinho = UIComponents.criarBotaoSecundario("Limpar Carrinho [F4]");
+        JButton btnLimparCarrinho = UIComponents.criarBotaoSecundario("Limpar Carrinho [F8]");
         btnRemoverItem.addActionListener(e -> removerItemSelecionado());
         btnLimparCarrinho.addActionListener(e -> limparCarrinho());
         pnlCarrinhoAcoes.add(btnRemoverItem);
         pnlCarrinhoAcoes.add(btnLimparCarrinho);
+        pnlCarrinhoRodape.add(pnlCarrinhoAcoes, BorderLayout.EAST);
 
-        pnlTabelaBox.add(new JScrollPane(tabelaCarrinho), BorderLayout.CENTER);
-        pnlTabelaBox.add(pnlCarrinhoAcoes, BorderLayout.SOUTH);
+        pnlTabelaBox.add(scrollTabela, BorderLayout.CENTER);
+        pnlTabelaBox.add(pnlCarrinhoRodape, BorderLayout.SOUTH);
 
-        JPanel pnlCentroEsquerda = new JPanel(new BorderLayout(0, UITheme.SPACE_12));
-        pnlCentroEsquerda.setOpaque(false);
-        pnlCentroEsquerda.add(pnlVitrineBox, BorderLayout.NORTH);
-        pnlCentroEsquerda.add(pnlTabelaBox, BorderLayout.CENTER);
+        // Montagem do lado esquerdo
+        JPanel pnlCorpoEsquerdo = new JPanel(new BorderLayout(0, UITheme.SPACE_12));
+        pnlCorpoEsquerdo.setOpaque(false);
+        pnlCorpoEsquerdo.add(pnlVitrineBox, BorderLayout.NORTH);
+        pnlCorpoEsquerdo.add(pnlTabelaBox, BorderLayout.CENTER);
 
-        pnlEsquerda.add(pnlCentroEsquerda, BorderLayout.CENTER);
+        pnlEsquerda.add(pnlBarraEntrada, BorderLayout.NORTH);
+        pnlEsquerda.add(pnlCorpoEsquerdo, BorderLayout.CENTER);
         pnlCentro.add(pnlEsquerda, BorderLayout.CENTER);
 
-        // Lado Direito: Resumo Financeiro & Finalização
+        // 3. Lado Direito: Resumo Financeiro & Finalização (Design Premium)
         JPanel pnlDireita = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -264,7 +363,7 @@ public class PDVPanel extends JPanel {
         // Total de Itens
         lblTotalItensQtd = new JLabel("Total de Itens: 0");
         lblTotalItensQtd.setFont(UITheme.FONT_BODY);
-        lblTotalItensQtd.setForeground(UITheme.tokens().getTextSecondary());
+        lblTotalItensQtd.setForeground(t.getTextSecondary());
         lblTotalItensQtd.setAlignmentX(Component.LEFT_ALIGNMENT);
         pnlDireita.add(lblTotalItensQtd);
         pnlDireita.add(Box.createVerticalStrut(UITheme.SPACE_12));
@@ -276,9 +375,11 @@ public class PDVPanel extends JPanel {
         pnlSub.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel lblSubTit = new JLabel("Subtotal:");
         lblSubTit.setFont(UITheme.FONT_BODY);
+        lblSubTit.setForeground(t.getTextPrimary());
         pnlSub.add(lblSubTit, BorderLayout.WEST);
         lblSubtotalValor = new JLabel("R$ 0,00");
         lblSubtotalValor.setFont(UITheme.FONT_TITLE);
+        lblSubtotalValor.setForeground(t.getTextPrimary());
         pnlSub.add(lblSubtotalValor, BorderLayout.EAST);
         pnlDireita.add(pnlSub);
         pnlDireita.add(Box.createVerticalStrut(UITheme.SPACE_12));
@@ -290,6 +391,7 @@ public class PDVPanel extends JPanel {
         pnlDesc.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel lblDescTit = new JLabel("Desconto (R$):");
         lblDescTit.setFont(UITheme.FONT_BODY);
+        lblDescTit.setForeground(t.getTextPrimary());
         pnlDesc.add(lblDescTit, BorderLayout.WEST);
         txtDescontoValor = new JTextField("0.00", 6);
         txtDescontoValor.setHorizontalAlignment(JTextField.RIGHT);
@@ -308,7 +410,7 @@ public class PDVPanel extends JPanel {
         // Card Total a Pagar
         lblTotalPagarValor = new JLabel("R$ 0,00");
         JPanel pnlCardTotal = UIComponents.criarCardMetrica("TOTAL A PAGAR", lblTotalPagarValor,
-                UITheme.tokens().getSuccess());
+                t.getSuccess());
         pnlCardTotal.setMaximumSize(new Dimension(Integer.MAX_VALUE, 85));
         pnlCardTotal.setAlignmentX(Component.LEFT_ALIGNMENT);
         pnlDireita.add(pnlCardTotal);
@@ -316,15 +418,15 @@ public class PDVPanel extends JPanel {
 
         // Botão de Destaque: FINALIZAR VENDA
         JButton btnFinalizarVenda = UIComponents.criarBotaoPrimario("FINALIZAR VENDA [F12]");
-        btnFinalizarVenda.setFont(UITheme.FONT_TITLE);
-        btnFinalizarVenda.setPreferredSize(new Dimension(280, 48));
-        btnFinalizarVenda.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+        btnFinalizarVenda.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        btnFinalizarVenda.setPreferredSize(new Dimension(280, 50));
+        btnFinalizarVenda.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
         btnFinalizarVenda.setAlignmentX(Component.LEFT_ALIGNMENT);
         btnFinalizarVenda.addActionListener(e -> abrirPagamentoVenda());
         pnlDireita.add(btnFinalizarVenda);
         pnlDireita.add(Box.createVerticalStrut(UITheme.SPACE_12));
 
-        JButton btnComprovanteUltima = UIComponents.criarBotaoSecundario("Imprimir Último Comprovante");
+        JButton btnComprovanteUltima = UIComponents.criarBotaoSecundario("Reimprimir Venda [F9]");
         btnComprovanteUltima.setAlignmentX(Component.LEFT_ALIGNMENT);
         btnComprovanteUltima.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
         btnComprovanteUltima.addActionListener(e -> exibirUltimoComprovante());
@@ -335,10 +437,169 @@ public class PDVPanel extends JPanel {
         pnlCentro.add(pnlDireita, BorderLayout.EAST);
         add(pnlCentro, BorderLayout.CENTER);
 
-        // Listeners
+        // Listeners de Entrada
         txtEntradaCodigoOuNome.addActionListener(e -> processarEntradaProduto());
         btnAdicionarItem.addActionListener(e -> processarEntradaProduto());
         btnBuscarEstoque.addActionListener(e -> abrirBuscaEstoqueDialog());
+    }
+
+    /**
+     * Recarrega os produtos e peças do banco MySQL na vitrine dinâmica
+     */
+    public void recarregarVitrineProdutos() {
+        try {
+            this.produtosVitrine = produtoDAO.buscarTodos();
+        } catch (Exception ex) {
+            this.produtosVitrine = new ArrayList<>();
+        }
+        renderizarCardsVitrine();
+    }
+
+    /**
+     * Renderiza os cards de produtos/peças com base no catálogo atual e filtro
+     */
+    private void renderizarCardsVitrine() {
+        if (pnlCardsVitrine == null) return;
+        pnlCardsVitrine.removeAll();
+
+        String filtro = txtFiltroVitrine != null ? txtFiltroVitrine.getText().trim().toLowerCase() : "";
+        List<Produto> filtrados = new ArrayList<>();
+
+        for (Produto p : produtosVitrine) {
+            if (filtro.isEmpty() || p.getNome().toLowerCase().contains(filtro) 
+                    || String.valueOf(p.getId()).equals(filtro) 
+                    || (p.getCodigoBarras() != null && p.getCodigoBarras().toLowerCase().contains(filtro))) {
+                filtrados.add(p);
+            }
+        }
+
+        if (lblVitrineContador != null) {
+            lblVitrineContador.setText("(" + filtrados.size() + " " + (filtrados.size() == 1 ? "item" : "itens") + ")");
+        }
+
+        if (filtrados.isEmpty()) {
+            JPanel pnlVazio = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 10));
+            pnlVazio.setOpaque(false);
+
+            if (produtosVitrine.isEmpty()) {
+                JLabel lblMsg = new JLabel("📦 Nenhuma peça ou produto cadastrado no catálogo ainda.");
+                lblMsg.setFont(UITheme.FONT_BODY);
+                lblMsg.setForeground(UITheme.tokens().getTextSecondary());
+
+                JButton btnCadastrar = UIComponents.criarBotaoPrimario("+ Cadastrar Peça / Produto", this::abrirNovoProdutoDialog);
+                btnCadastrar.setFont(UITheme.FONT_SMALL);
+
+                pnlVazio.add(lblMsg);
+                pnlVazio.add(btnCadastrar);
+            } else {
+                JLabel lblMsg = new JLabel("🔍 Nenhuma peça/produto encontrado com o filtro '" + filtro + "'.");
+                lblMsg.setFont(UITheme.FONT_BODY);
+                lblMsg.setForeground(UITheme.tokens().getTextSecondary());
+                pnlVazio.add(lblMsg);
+            }
+            pnlCardsVitrine.add(pnlVazio);
+        } else {
+            for (Produto p : filtrados) {
+                pnlCardsVitrine.add(criarCardProduto(p));
+            }
+        }
+
+        pnlCardsVitrine.revalidate();
+        pnlCardsVitrine.repaint();
+    }
+
+    /**
+     * Cria um card moderno para a peça/produto com nome, preço, estoque e clique rápido
+     */
+    private JComponent criarCardProduto(Produto p) {
+        ThemeTokens t = UITheme.tokens();
+
+        JPanel card = new JPanel(new BorderLayout(4, 2)) {
+            private boolean isHover = false;
+            {
+                addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mouseEntered(MouseEvent e) {
+                        isHover = true;
+                        repaint();
+                    }
+                    @Override
+                    public void mouseExited(MouseEvent e) {
+                        isHover = false;
+                        repaint();
+                    }
+                    @Override
+                    public void mouseClicked(MouseEvent e) {
+                        int qtd = (Integer) spQuantidade.getValue();
+                        if (qtd <= 0) qtd = 1;
+                        adicionarAoCarrinho(p, qtd);
+                        spQuantidade.setValue(1);
+                        txtEntradaCodigoOuNome.requestFocus();
+                    }
+                });
+            }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(isHover ? t.getBgCardHover() : t.getBgCard());
+                g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+                g2.setColor(isHover ? t.getPrimaryAccent() : t.getBorderSubtle());
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+
+        card.setOpaque(false);
+        card.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        card.setPreferredSize(new Dimension(185, 56));
+        card.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+
+        // Formatação do Nome
+        String nomeExibicao = p.getNome();
+        if (nomeExibicao.length() > 21) {
+            nomeExibicao = nomeExibicao.substring(0, 19) + "…";
+        }
+        JLabel lblNome = new JLabel(nomeExibicao);
+        lblNome.setFont(UITheme.FONT_BODY_BOLD);
+        lblNome.setForeground(t.getTextPrimary());
+
+        // Tooltip rica com dados da peça
+        card.setToolTipText(String.format("<html><b>%s</b><br>ID: #%d | Cód. Barras: %s<br>Estoque: %d un | Preço: R$ %.2f<br><i>(Clique para adicionar ao carrinho)</i></html>",
+                p.getNome(), p.getId(), 
+                (p.getCodigoBarras() != null && !p.getCodigoBarras().isEmpty() ? p.getCodigoBarras() : "Sem EAN"),
+                p.getEstoque(), p.getPreco()));
+
+        // Linha inferior: Preço em destaque e Badge de Estoque
+        JPanel pnlInferior = new JPanel(new BorderLayout());
+        pnlInferior.setOpaque(false);
+
+        JLabel lblPreco = new JLabel(String.format("R$ %.2f", p.getPreco()));
+        lblPreco.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblPreco.setForeground(t.getSuccess());
+
+        String textoEstoque = p.getEstoque() > 0 ? "● " + p.getEstoque() + " un" : "○ Sem est.";
+        JLabel lblEstoque = new JLabel(textoEstoque);
+        lblEstoque.setFont(UITheme.FONT_CAPTION);
+        lblEstoque.setForeground(p.getEstoque() > 0 ? t.getTextSecondary() : t.getDanger());
+
+        pnlInferior.add(lblPreco, BorderLayout.WEST);
+        pnlInferior.add(lblEstoque, BorderLayout.EAST);
+
+        card.add(lblNome, BorderLayout.NORTH);
+        card.add(pnlInferior, BorderLayout.SOUTH);
+
+        return card;
+    }
+
+    public void abrirNovoProdutoDialog() {
+        ProdutoDialog dialog = new ProdutoDialog(owner, produtoDAO, null);
+        dialog.setVisible(true);
+        if (dialog.isSalvo()) {
+            recarregarVitrineProdutos();
+        }
     }
 
     private void configurarAtalhosTeclado() {
@@ -376,6 +637,14 @@ public class PDVPanel extends JPanel {
                 removerItemSelecionado();
             }
         });
+
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_F9, 0), "reimprimirUltima");
+        am.put("reimprimirUltima", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                exibirUltimoComprovante();
+            }
+        });
     }
 
     public void focarEntrada() {
@@ -383,23 +652,6 @@ public class PDVPanel extends JPanel {
             txtEntradaCodigoOuNome.requestFocusInWindow();
             txtEntradaCodigoOuNome.selectAll();
         }
-    }
-
-    private void adicionarBotaoAcessorioRapido(JPanel pnlVitrine, String rotulo, double precoPadrao) {
-        JButton btn = UIComponents.criarBotaoSecundario(rotulo + " • R$ " + String.format("%.2f", precoPadrao));
-        btn.setFont(UITheme.FONT_SMALL);
-        btn.addActionListener(e -> {
-            String termoLimpo = rotulo.replaceAll("[^a-zA-Z0-9 ]", "").trim();
-            Produto p = produtoDAO.buscarPorCodigoOuId(termoLimpo);
-            if (p != null) {
-                adicionarAoCarrinho(p, 1);
-            } else {
-                ItemVenda item = new ItemVenda(0, rotulo, 1, precoPadrao);
-                carrinho.add(item);
-                atualizarTabelaCarrinho();
-            }
-        });
-        pnlVitrine.add(btn);
     }
 
     private void processarEntradaProduto() {
@@ -432,7 +684,7 @@ public class PDVPanel extends JPanel {
             txtEntradaCodigoOuNome.requestFocus();
         } else {
             int opt = JOptionPane.showConfirmDialog(this,
-                    "Produto '" + texto + "' não localizado no estoque.\n\nDeseja realizar uma busca avançada?",
+                    "Produto '" + texto + "' não localizado no catálogo.\n\nDeseja realizar uma busca avançada?",
                     "Produto Não Encontrado", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
             if (opt == JOptionPane.YES_OPTION) {
                 abrirBuscaEstoqueDialog();
@@ -490,6 +742,12 @@ public class PDVPanel extends JPanel {
         lblTotalItensQtd.setText("Total de Itens: " + totalItens);
         lblSubtotalValor.setText(String.format("R$ %.2f", subtotal));
         lblTotalPagarValor.setText(String.format("R$ %.2f", totalPagar));
+
+        if (lblItensCarrinhoContador != null) {
+            lblItensCarrinhoContador.setText(totalItens == 0 ? "🛒 Carrinho Vazio • 0 itens adicionados"
+                    : String.format("🛒 %d %s no carrinho • Subtotal: R$ %.2f", totalItens,
+                            (totalItens == 1 ? "item" : "itens"), subtotal));
+        }
     }
 
     private void removerItemSelecionado() {
@@ -519,8 +777,12 @@ public class PDVPanel extends JPanel {
     private void abrirBuscaEstoqueDialog() {
         List<Produto> todos = produtoDAO.buscarTodos();
         if (todos.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Nenhum produto cadastrado no estoque.", "Estoque Vazio",
-                    JOptionPane.INFORMATION_MESSAGE);
+            int opt = JOptionPane.showConfirmDialog(this,
+                    "Nenhum produto cadastrado no catálogo ainda.\n\nDeseja cadastrar uma nova peça/produto agora?",
+                    "Catálogo Vazio", JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
+            if (opt == JOptionPane.YES_OPTION) {
+                abrirNovoProdutoDialog();
+            }
             return;
         }
 
@@ -531,7 +793,7 @@ public class PDVPanel extends JPanel {
 
         JSpinner sp = new JSpinner(new SpinnerNumberModel(1, 1, 999, 1));
         JPanel pnl = new JPanel(new GridLayout(2, 2, 8, 8));
-        pnl.add(new JLabel("Selecione o Produto:"));
+        pnl.add(new JLabel("Selecione o Produto/Peça:"));
         pnl.add(cb);
         pnl.add(new JLabel("Quantidade:"));
         pnl.add(sp);
@@ -550,7 +812,7 @@ public class PDVPanel extends JPanel {
     public void atualizarStatusCaixa() {
         if (lblStatusCaixa == null)
             return;
-        com.loja.model.CaixaSessao s = caixaDAO.obterSessaoAberta();
+        CaixaSessao s = caixaDAO.obterSessaoAberta();
         if (s != null) {
             lblStatusCaixa.setText("● Caixa Aberto (Turno #" + s.getId() + " • " + s.getOperadorAbertura() + ")");
             lblStatusCaixa.setForeground(UITheme.tokens().getSuccess());
@@ -580,7 +842,7 @@ public class PDVPanel extends JPanel {
     }
 
     private void alternarAcaoCaixa() {
-        com.loja.model.CaixaSessao s = caixaDAO.obterSessaoAberta();
+        CaixaSessao s = caixaDAO.obterSessaoAberta();
         if (s == null) {
             abrirAberturaCaixaDireto();
         } else {
@@ -600,7 +862,7 @@ public class PDVPanel extends JPanel {
     }
 
     public boolean verificarEAbrirCaixaSeNecessario() {
-        com.loja.model.CaixaSessao s = caixaDAO.obterSessaoAberta();
+        CaixaSessao s = caixaDAO.obterSessaoAberta();
         if (s != null) {
             atualizarStatusCaixa();
             return true;
@@ -608,8 +870,7 @@ public class PDVPanel extends JPanel {
 
         int opt = JOptionPane.showConfirmDialog(this,
                 "O CAIXA ESTÁ FECHADO!\n\nPara realizar vendas e movimentações financeiras, é necessário abrir o turno.\n"
-                        +
-                        "Deseja realizar a Abertura de Caixa agora?",
+                        + "Deseja realizar a Abertura de Caixa agora?",
                 "Caixa Fechado", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 
         if (opt == JOptionPane.YES_OPTION) {
@@ -671,6 +932,7 @@ public class PDVPanel extends JPanel {
                 carrinho.clear();
                 txtDescontoValor.setText("0.00");
                 atualizarTabelaCarrinho();
+                recarregarVitrineProdutos();
                 txtEntradaCodigoOuNome.requestFocus();
             } else {
                 JOptionPane.showMessageDialog(this, "Erro ao gravar a venda no banco de dados.", "Erro",
@@ -689,49 +951,8 @@ public class PDVPanel extends JPanel {
     }
 
     private void exibirComprovanteVenda(VendaPDV venda) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("============================================================\n");
-        sb.append("                 CUPOM NÃO FISCAL - PDV                    \n");
-        sb.append("            ASSISTÊNCIA TÉCNICA & ACESSÓRIOS                \n");
-        sb.append("============================================================\n");
-        sb.append("Venda Nº:           #").append(venda.getId()).append("\n");
-        sb.append("Data / Hora:        ").append(venda.getDataHora().format(FORMATTER_HORA)).append("\n");
-        sb.append("------------------------------------------------------------\n");
-        sb.append(String.format("%-28s %4s %9s %12s\n", "ITEM / PRODUTO", "QTD", "VL.UNIT", "SUBTOTAL"));
-        sb.append("------------------------------------------------------------\n");
-
-        for (ItemVenda item : venda.getItens()) {
-            String nome = item.getNomeProduto();
-            if (nome.length() > 27)
-                nome = nome.substring(0, 24) + "...";
-            sb.append(String.format("%-28s %4d %9.2f %12.2f\n", nome, item.getQuantidade(), item.getValorUnitario(),
-                    item.getSubtotal()));
-        }
-
-        sb.append("------------------------------------------------------------\n");
-        sb.append(String.format("SUBTOTAL:                                     R$ %10.2f\n", venda.getSubtotal()));
-        if (venda.getDesconto() > 0) {
-            sb.append(String.format("DESCONTO CONCEDIDO:                          -R$ %10.2f\n", venda.getDesconto()));
-        }
-        sb.append(String.format("TOTAL A PAGAR:                                R$ %10.2f\n", venda.getValorTotal()));
-        sb.append("------------------------------------------------------------\n");
-        sb.append("[FORMAS DE PAGAMENTO UTILIZADAS]\n");
-        for (PagamentoItem p : venda.getPagamentos()) {
-            sb.append(String.format("  • %-32s R$ %10.2f\n", p.getModalidadeFormatada(), p.getValorBruto()));
-            if (p.getTroco() > 0) {
-                sb.append(String.format("    (Recebido: R$ %.2f | Troco: R$ %.2f)\n", p.getValorRecebidoCliente(),
-                        p.getTroco()));
-            }
-        }
-        sb.append("============================================================\n");
-        sb.append("         Obrigado pela preferência! Volte sempre!           \n");
-        sb.append("============================================================\n");
-
-        JTextArea area = new JTextArea(sb.toString(), 22, 48);
-        area.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        area.setEditable(false);
-
-        JOptionPane.showMessageDialog(this, new JScrollPane(area), "Comprovante de Venda #" + venda.getId(),
-                JOptionPane.PLAIN_MESSAGE);
+        if (venda == null) return;
+        com.loja.view.dialogs.ComprovanteVendaDialog dialog = new com.loja.view.dialogs.ComprovanteVendaDialog(owner, venda, caixaDAO);
+        dialog.setVisible(true);
     }
 }

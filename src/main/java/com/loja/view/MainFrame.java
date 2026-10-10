@@ -90,6 +90,7 @@ public class MainFrame extends JFrame {
         setSize(1240, 790);
         setMinimumSize(new Dimension(1000, 660));
         setLocationRelativeTo(null);
+        com.loja.util.LogoUtil.aplicarIconeJanela(this);
 
         initComponents();
         aplicarPermissoesPerfil();
@@ -117,6 +118,13 @@ public class MainFrame extends JFrame {
         JPanel pnlLogo = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         pnlLogo.setOpaque(false);
 
+        ImageIcon iconeLogo = com.loja.util.LogoUtil.getIconeRedimensionado(26, 26);
+        if (iconeLogo != null) {
+            JLabel lblIconeImg = new JLabel(iconeLogo);
+            lblIconeImg.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 4));
+            pnlLogo.add(lblIconeImg);
+        }
+
         lblTituloLogo = new JLabel("SYSTEM PRO");
         lblTituloLogo.setFont(UITheme.FONT_TITLE);
         lblTituloLogo.setForeground(t.getTextPrimary());
@@ -142,6 +150,11 @@ public class MainFrame extends JFrame {
         btnGerenciarUsuarios.setFont(UITheme.FONT_CAPTION);
         btnGerenciarUsuarios.putClientProperty("JButton.arc", 6);
         btnGerenciarUsuarios.addActionListener(e -> abrirGerenciadorUsuarios());
+
+        JButton btnFiscal = new JButton("Fiscal");
+        btnFiscal.setFont(UITheme.FONT_CAPTION);
+        btnFiscal.putClientProperty("JButton.arc", 6);
+        btnFiscal.addActionListener(e -> abrirConfigFiscal());
 
         btnBackup = new JButton("Backup do Banco");
         btnBackup.setFont(UITheme.FONT_CAPTION);
@@ -196,6 +209,7 @@ public class MainFrame extends JFrame {
 
         pnlHeaderRight.add(lblUsuarioLogado);
         pnlHeaderRight.add(btnGerenciarUsuarios);
+        pnlHeaderRight.add(btnFiscal);
         pnlHeaderRight.add(btnBackup);
         pnlHeaderRight.add(lblBackupStatus);
         pnlHeaderRight.add(btnAtualizacoes);
@@ -335,6 +349,15 @@ public class MainFrame extends JFrame {
         if (osPanel != null) {
             osPanel.aplicarPermissoesPerfil();
         }
+        if (equipPanel != null) {
+            equipPanel.aplicarPermissoesPerfil();
+        }
+        if (clientePanel != null) {
+            clientePanel.aplicarPermissoesPerfil();
+        }
+        if (estoquePanel != null) {
+            estoquePanel.aplicarPermissoesPerfil();
+        }
         if (caixaPanel != null) {
             caixaPanel.aplicarPermissoesPerfil();
         }
@@ -467,6 +490,15 @@ public class MainFrame extends JFrame {
         if (osPanel != null) {
             osPanel.aplicarPermissoesPerfil();
         }
+        if (equipPanel != null) {
+            equipPanel.aplicarPermissoesPerfil();
+        }
+        if (clientePanel != null) {
+            clientePanel.aplicarPermissoesPerfil();
+        }
+        if (estoquePanel != null) {
+            estoquePanel.aplicarPermissoesPerfil();
+        }
         if (caixaPanel != null) {
             caixaPanel.aplicarPermissoesPerfil();
         }
@@ -485,6 +517,7 @@ public class MainFrame extends JFrame {
         estoquePanel.recarregarTabela();
         caixaPanel.recarregarDados();
         pdvPanel.atualizarStatusCaixa();
+        pdvPanel.recarregarVitrineProdutos();
         if (terminaisPanel != null && "TERMINAIS".equals(abaAtiva)) {
             terminaisPanel.recarregarDados();
         }
@@ -497,6 +530,18 @@ public class MainFrame extends JFrame {
 
     private void abrirBackupDialog() {
         BackupDialog dialog = new BackupDialog(this);
+        dialog.setVisible(true);
+    }
+
+    private void abrirConfigFiscal() {
+        Usuario u = SessaoUsuario.getInstancia().getUsuarioLogado();
+        if (u != null && u.getPerfil() != PerfilUsuario.ADMIN) {
+            JOptionPane.showMessageDialog(this,
+                    "Apenas administradores possuem permissão para configurar dados fiscais e o certificado digital!",
+                    "Acesso Restrito", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        com.loja.view.dialogs.ConfigFiscalDialog dialog = new com.loja.view.dialogs.ConfigFiscalDialog(this);
         dialog.setVisible(true);
     }
 

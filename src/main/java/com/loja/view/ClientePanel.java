@@ -1,6 +1,8 @@
 package com.loja.view;
 
 import com.loja.model.Cliente;
+import com.loja.model.SessaoUsuario;
+import com.loja.model.Usuario;
 import com.loja.repository.ClienteDAO;
 import com.loja.repository.EquipamentoDAO;
 import com.loja.view.dialogs.ClienteDialog;
@@ -25,6 +27,7 @@ public class ClientePanel extends JPanel {
     private DefaultTableModel tableModel;
     private JTextField txtBusca;
     private JLabel lblContador;
+    private JButton btnExcluir;
 
     public ClientePanel(Frame owner, ClienteDAO clienteDAO, EquipamentoDAO equipDAO) {
         this.owner = owner;
@@ -67,6 +70,8 @@ public class ClientePanel extends JPanel {
         JButton btnBuscar = UIComponents.criarBotaoSecundario("Buscar", this::filtrarClientes);
         JButton btnNovo = UIComponents.criarBotaoPrimario("+ Novo Cliente", this::abrirNovoCliente);
         JButton btnEditar = UIComponents.criarBotaoSecundario("Editar", this::editarClienteSelecionado);
+        this.btnExcluir = UIComponents.criarBotaoSecundario("Excluir", this::excluirClienteSelecionado);
+        this.btnExcluir.setToolTipText("Excluir cliente permanentemente (Apenas Administrador)");
         JButton btnNovoEquip = UIComponents.criarBotaoSecundario("+ Vincular Aparelho", this::abrirEquipamentoDoCliente);
         JButton btnAtualizar = UIComponents.criarBotaoSecundario("Atualizar [F5]", () -> {
             txtBusca.setText("");
@@ -79,6 +84,7 @@ public class ClientePanel extends JPanel {
         pnlBuscaEAcoes.add(btnBuscar);
         pnlBuscaEAcoes.add(btnNovo);
         pnlBuscaEAcoes.add(btnEditar);
+        pnlBuscaEAcoes.add(this.btnExcluir);
         pnlBuscaEAcoes.add(btnNovoEquip);
         pnlBuscaEAcoes.add(btnAtualizar);
 
@@ -130,6 +136,7 @@ public class ClientePanel extends JPanel {
     }
 
     public void recarregarTabela() {
+        aplicarPermissoesPerfil();
         UIComponents.formatarTabelaModerna(tabela, -1);
         tableModel.setRowCount(0);
         List<Cliente> clientes = clienteDAO.buscarTodos();
@@ -209,6 +216,64 @@ public class ClientePanel extends JPanel {
         if (txtBusca != null) {
             txtBusca.requestFocusInWindow();
             txtBusca.selectAll();
+        }
+    }
+
+    public void aplicarPermissoesPerfil() {
+        Usuario user = SessaoUsuario.getInstancia().getUsuarioLogado();
+        boolean isAdmin = user != null && user.isAdmin();
+        if (btnExcluir != null) {
+            btnExcluir.setVisible(isAdmin);
+        }
+    }
+
+    private void excluirClienteSelecionado() {
+        Usuario user = SessaoUsuario.getInstancia().getUsuarioLogado();
+        if (user == null || !user.isAdmin()) {
+            JOptionPane.showMessageDialog(this,
+                    "Acesso Restrito!\nApenas usuários com perfil Administrador possuem permissão para excluir Clientes.",
+                    "Acesso Negado", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int row = tabela.getSelectedRow();
+        if (row < 0) {
+            JOptionPane.showMessageDialog(this, "Selecione um cliente na tabela para excluir!", "Aviso",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int id = (int) tableModel.getValueAt(row, 0);
+        String nomeCliente = (String) tableModel.getValueAt(row, 1);
+
+        int totalEquip = clienteDAO.contarEquipamentosVinculados(id);
+        int totalOS = clienteDAO.contarOSVinculadas(id);
+
+        String msg;
+        if (totalEquip > 0 || totalOS > 0) {
+            msg = "ATENÇÃO: O cliente #" + id + " (" + nomeCliente + ") possui:\n" +
+                  " • " + totalEquip + " equipamento(s) cadastrado(s)\n" +
+                  " • " + totalOS + " Ordem(ns) de Serviço vinculada(s)\n\n" +
+                  "Ao excluir este cliente, todos os seus equipamentos e ordens de serviço (incluindo peças, laudos e fotos) " +
+                  "serão excluídos permanentemente do banco de dados!\n\n" +
+                  "Deseja realmente continuar e excluir o cliente e todos os seus registros vinculados?";
+        } else {
+            msg = "Deseja realmente excluir permanentemente o cliente #" + id + " (" + nomeCliente + ")?\n\n" +
+                  "Esta ação não poderá ser desfeita!";
+        }
+
+        int opt = JOptionPane.showConfirmDialog(this, msg, "Confirmar Exclusão de Cliente",
+                JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+        if (opt == JOptionPane.YES_OPTION) {
+            boolean ok = clienteDAO.excluir(id);
+            if (ok) {
+                JOptionPane.showMessageDialog(this, "Cliente #" + id + " (" + nomeCliente + ") excluído com sucesso!",
+                        "Sucesso", JOptionPane.INFORMATION_MESSAGE);
+                recarregarTabela();
+            } else {
+                JOptionPane.showMessageDialog(this, "Erro ao excluir cliente do banco de dados.", "Erro",
+                        JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 }

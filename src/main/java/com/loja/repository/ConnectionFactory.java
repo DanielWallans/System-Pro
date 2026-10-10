@@ -201,7 +201,7 @@ public class ConnectionFactory {
 
         StringBuilder sb = new StringBuilder();
         sb.append("jdbc:mysql://").append(finalHost).append(":").append(finalPort).append("/").append(finalDb);
-        sb.append("?allowPublicKeyRetrieval=true&serverTimezone=UTC&connectTimeout=8000");
+        sb.append("?allowPublicKeyRetrieval=true&serverTimezone=UTC&connectTimeout=8000&useUnicode=true&characterEncoding=UTF-8");
 
         if (autoCreateDb) {
             sb.append("&createDatabaseIfNotExist=true");
@@ -323,9 +323,17 @@ public class ConnectionFactory {
             // 1. Tabela de Peças/Produtos
             stmt.execute("CREATE TABLE IF NOT EXISTS produto (" +
                     "id INT PRIMARY KEY, " +
+                    "codigo_barras VARCHAR(50), " +
                     "nome VARCHAR(100), " +
+                    "preco_custo DOUBLE DEFAULT 0.0, " +
                     "preco DOUBLE, " +
-                    "estoque INT)");
+                    "estoque INT, " +
+                    "ncm VARCHAR(10) DEFAULT '', " +
+                    "cest VARCHAR(10) DEFAULT '', " +
+                    "cfop VARCHAR(10) DEFAULT '5102', " +
+                    "origem INT DEFAULT 0, " +
+                    "csosn_cst VARCHAR(10) DEFAULT '102', " +
+                    "unidade VARCHAR(10) DEFAULT 'UN')");
 
             // 2. Tabela de Clientes
             stmt.execute("CREATE TABLE IF NOT EXISTS cliente (" +
@@ -565,12 +573,80 @@ public class ConnectionFactory {
                     "ativo TINYINT(1) DEFAULT 1, " +
                     "atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
 
+            // 24. Tabela de Configurações Fiscais e Emissão SEFAZ (NFC-e / NF-e)
+            stmt.execute("CREATE TABLE IF NOT EXISTS config_fiscal (" +
+                    "id INT PRIMARY KEY, " +
+                    "cnpj VARCHAR(20), " +
+                    "inscricao_estadual VARCHAR(30), " +
+                    "razao_social VARCHAR(150), " +
+                    "nome_fantasia VARCHAR(150), " +
+                    "regime_tributario INT DEFAULT 1, " +
+                    "ambiente INT DEFAULT 2, " +
+                    "csc_token VARCHAR(100), " +
+                    "csc_id VARCHAR(10) DEFAULT '000001', " +
+                    "serie_nfce INT DEFAULT 1, " +
+                    "ultimo_numero_nfce INT DEFAULT 0, " +
+                    "serie_nfe INT DEFAULT 1, " +
+                    "ultimo_numero_nfe INT DEFAULT 0, " +
+                    "certificado_caminho VARCHAR(255), " +
+                    "certificado_senha VARCHAR(100), " +
+                    "logradouro VARCHAR(150), " +
+                    "numero VARCHAR(20), " +
+                    "complemento VARCHAR(50), " +
+                    "bairro VARCHAR(100), " +
+                    "municipio VARCHAR(100), " +
+                    "codigo_ibge VARCHAR(10), " +
+                    "uf VARCHAR(2) DEFAULT 'SP', " +
+                    "cep VARCHAR(10), " +
+                    "telefone VARCHAR(20))");
+
+            // 25. Tabela de Registro de Notas Fiscais Emitidas
+            stmt.execute("CREATE TABLE IF NOT EXISTS nota_fiscal (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "tipo VARCHAR(10) NOT NULL, " +
+                    "modelo VARCHAR(5) NOT NULL, " +
+                    "serie INT NOT NULL, " +
+                    "numero INT NOT NULL, " +
+                    "chave_acesso VARCHAR(50), " +
+                    "status VARCHAR(30) NOT NULL DEFAULT 'PENDENTE', " +
+                    "data_emissao TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                    "venda_id INT NULL, " +
+                    "os_id INT NULL, " +
+                    "cliente_id INT NULL, " +
+                    "cliente_cpf_cnpj VARCHAR(20), " +
+                    "cliente_nome VARCHAR(100), " +
+                    "valor_total DOUBLE NOT NULL DEFAULT 0.0, " +
+                    "protocolo_autorizacao VARCHAR(50), " +
+                    "motivo_status TEXT, " +
+                    "qr_code_url TEXT, " +
+                    "xml_envio LONGTEXT, " +
+                    "xml_retorno LONGTEXT, " +
+                    "FOREIGN KEY (venda_id) REFERENCES venda_pdv(id) ON DELETE SET NULL, " +
+                    "FOREIGN KEY (os_id) REFERENCES ordem_servico(id) ON DELETE SET NULL)");
+
             // Migrações automáticas de colunas e tamanhos
             try {
                 stmt.execute("ALTER TABLE ordem_servico MODIFY COLUMN status VARCHAR(100)");
             } catch (SQLException ignored) {}
 
             adicionarColunaSeNaoExistir(conn, "produto", "codigo_barras", "VARCHAR(50)");
+            adicionarColunaSeNaoExistir(conn, "produto", "preco_custo", "DOUBLE DEFAULT 0.0");
+            adicionarColunaSeNaoExistir(conn, "produto", "ncm", "VARCHAR(10) DEFAULT ''");
+            adicionarColunaSeNaoExistir(conn, "produto", "cest", "VARCHAR(10) DEFAULT ''");
+            adicionarColunaSeNaoExistir(conn, "produto", "cfop", "VARCHAR(10) DEFAULT '5102'");
+            adicionarColunaSeNaoExistir(conn, "produto", "origem", "INT DEFAULT 0");
+            adicionarColunaSeNaoExistir(conn, "produto", "csosn_cst", "VARCHAR(10) DEFAULT '102'");
+            adicionarColunaSeNaoExistir(conn, "produto", "unidade", "VARCHAR(10) DEFAULT 'UN'");
+
+            adicionarColunaSeNaoExistir(conn, "cliente", "inscricao_estadual", "VARCHAR(30) DEFAULT ''");
+            adicionarColunaSeNaoExistir(conn, "cliente", "indicador_ie", "INT DEFAULT 9");
+            adicionarColunaSeNaoExistir(conn, "cliente", "cep", "VARCHAR(10) DEFAULT ''");
+            adicionarColunaSeNaoExistir(conn, "cliente", "numero", "VARCHAR(20) DEFAULT ''");
+            adicionarColunaSeNaoExistir(conn, "cliente", "bairro", "VARCHAR(100) DEFAULT ''");
+            adicionarColunaSeNaoExistir(conn, "cliente", "municipio", "VARCHAR(100) DEFAULT ''");
+            adicionarColunaSeNaoExistir(conn, "cliente", "uf", "VARCHAR(2) DEFAULT ''");
+            adicionarColunaSeNaoExistir(conn, "cliente", "codigo_ibge", "VARCHAR(10) DEFAULT ''");
+
             adicionarColunaSeNaoExistir(conn, "sangria", "justificativa", "VARCHAR(255)");
             adicionarColunaSeNaoExistir(conn, "equipamento", "cor", "VARCHAR(50)");
             adicionarColunaSeNaoExistir(conn, "equipamento", "avarias", "TEXT");
@@ -585,6 +661,15 @@ public class ConnectionFactory {
 
             // Migração de os_pecas se tiver chave primária antiga
             migrarTabelaOsPecasSeNecessario(conn);
+
+            // Inicializar configuração fiscal padrão caso tabela esteja vazia
+            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM config_fiscal")) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    stmt.execute("INSERT INTO config_fiscal (id, razao_social, nome_fantasia, regime_tributario, ambiente, serie_nfce, ultimo_numero_nfce, serie_nfe, ultimo_numero_nfe) " +
+                            "VALUES (1, 'Sua Empresa LTDA', 'Minha Loja & Assistência', 1, 2, 1, 0, 1, 0)");
+                    System.out.println("[DB] Configuração fiscal padrão inicializada (Ambiente: Homologação).");
+                }
+            }
 
             // Inicializar saldo do caixa caso esteja vazio
             try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM caixa")) {

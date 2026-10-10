@@ -154,6 +154,14 @@ public class DetalhesOSDialog extends JDialog {
         btnActions.add(this.btnComprovante);
         btnActions.add(this.btnFinalizarOS);
         btnActions.add(btnSalvarAlteracoes);
+
+        Usuario userLogado = SessaoUsuario.getInstancia().getUsuarioLogado();
+        if (userLogado != null && userLogado.isAdmin()) {
+            JButton btnExcluir = UIComponents.criarBotaoSecundario("Excluir OS", this::acaoExcluirOS);
+            btnExcluir.setToolTipText("Excluir permanentemente esta Ordem de Serviço (Apenas Administrador)");
+            btnActions.add(btnExcluir);
+        }
+
         btnActions.add(btnFechar);
         bottomPanel.add(btnActions, BorderLayout.EAST);
 
@@ -947,6 +955,35 @@ public class DetalhesOSDialog extends JDialog {
 
         JOptionPane.showMessageDialog(this, new JScrollPane(areaTexto), "Comprovante da OS #" + osOriginal.getId(),
                 JOptionPane.PLAIN_MESSAGE);
+    }
+
+    private void acaoExcluirOS() {
+        Usuario user = SessaoUsuario.getInstancia().getUsuarioLogado();
+        if (user == null || !user.isAdmin()) {
+            JOptionPane.showMessageDialog(this,
+                    "Acesso Restrito!\nApenas usuários com perfil Administrador possuem permissão para excluir Ordens de Serviço.",
+                    "Acesso Negado", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int opt = JOptionPane.showConfirmDialog(this,
+                "ATENÇÃO: Deseja realmente excluir permanentemente a Ordem de Serviço #" + osOriginal.getId() + "?\n\n" +
+                "Esta ação apagará todas as peças, serviços, fotos e histórico vinculados a esta OS.\n" +
+                "Esta operação não poderá ser desfeita!",
+                "Confirmar Exclusão de OS", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+        if (opt == JOptionPane.YES_OPTION) {
+            boolean ok = osDAO.excluir(osOriginal.getId());
+            if (ok) {
+                JOptionPane.showMessageDialog(this, "Ordem de Serviço #" + osOriginal.getId() + " excluída com sucesso!",
+                        "Sucesso", JOptionPane.INFORMATION_MESSAGE);
+                alterado = true;
+                dispose();
+            } else {
+                JOptionPane.showMessageDialog(this, "Erro ao excluir a Ordem de Serviço #" + osOriginal.getId() + ".",
+                        "Erro", JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 
     public boolean isAlterado() {

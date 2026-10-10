@@ -99,6 +99,22 @@ public class ClienteDialog extends JDialog {
         }
 
         String cpf = txtCpfCnpj.getText().trim();
+        if (!cpf.isEmpty()) {
+            if (!com.loja.util.FiscalUtils.validarCpfOuCnpj(cpf)) {
+                int opt = JOptionPane.showConfirmDialog(this,
+                        "O CPF/CNPJ informado ('" + cpf + "') parece inválido pelos dígitos verificadores oficiais.\n" +
+                        "A SEFAZ rejeitará notas fiscais emitidas para este documento.\n\n" +
+                        "Deseja salvar mesmo assim?",
+                        "Validação Fiscal de Documento", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                if (opt != JOptionPane.YES_OPTION) {
+                    txtCpfCnpj.requestFocus();
+                    return;
+                }
+            } else {
+                cpf = com.loja.util.FiscalUtils.formatarCpfCnpj(cpf);
+            }
+        }
+
         String tel = txtTelefone.getText().trim();
         String email = txtEmail.getText().trim();
         String endereco = txtEndereco.getText().trim();

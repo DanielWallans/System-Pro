@@ -146,4 +146,101 @@ public class ClienteDAO {
         }
         return lista;
     }
+
+    public int contarEquipamentosVinculados(int clienteId) {
+        String sql = "SELECT COUNT(*) FROM equipamento WHERE cliente_id = ?";
+        try (Connection conn = ConnectionFactory.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, clienteId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[ERRO DB] Falha ao contar equipamentos do cliente #" + clienteId + ": " + e.getMessage());
+        }
+        return 0;
+    }
+
+    public int contarOSVinculadas(int clienteId) {
+        String sql = "SELECT COUNT(*) FROM ordem_servico WHERE cliente_id = ?";
+        try (Connection conn = ConnectionFactory.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, clienteId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[ERRO DB] Falha ao contar OS do cliente #" + clienteId + ": " + e.getMessage());
+        }
+        return 0;
+    }
+
+    public boolean excluir(int clienteId) {
+        try (Connection conn = ConnectionFactory.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                // 1. Obter e excluir todas as OS vinculadas a este cliente
+                List<Integer> osIds = new ArrayList<>();
+                try (PreparedStatement stmt = conn.prepareStatement("SELECT id FROM ordem_servico WHERE cliente_id = ?")) {
+                    stmt.setInt(1, clienteId);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) {
+                            osIds.add(rs.getInt("id"));
+                        }
+                    }
+                }
+                for (int osId : osIds) {
+                    OrdemServicoDAO.excluirOSComDependencias(conn, osId);
+                }
+
+                // 2. Excluir todos os equipamentos vinculados a este cliente
+                List<Integer> equipIds = new ArrayList<>();
+                try (PreparedStatement stmt = conn.prepareStatement("SELECT id FROM equipamento WHERE cliente_id = ?")) {
+                    stmt.setInt(1, clienteId);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) {
+                            equipIds.add(rs.getInt("id"));
+                        }
+                    }
+                }
+                for (int equipId : equipIds) {
+                    EquipamentoDAO.excluirEquipamentoComDependencias(conn, equipId);
+                }
+
+                // 3. Desvincular notas fiscais do cliente se houver
+                try (PreparedStatement stmt = conn.prepareStatement("UPDATE nota_fiscal SET cliente_id = NULL WHERE cliente_id = ?")) {
+                    stmt.setInt(1, clienteId);
+                    stmt.executeUpdate();
+                }
+
+                // 4. Excluir o cliente
+                int deleted = 0;
+                try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM cliente WHERE id = ?")) {
+                    stmt.setInt(1, clienteId);
+                    deleted = stmt.executeUpdate();
+                }
+
+                conn.commit();
+                if (deleted > 0) {
+                    System.out.println("[DB] Cliente #" + clienteId + " excluído com sucesso.");
+                    try {
+                        com.loja.service.AutoBackupService.getInstance().notificarAcaoCritica("Exclusão Cliente #" + clienteId);
+                    } catch (Exception ignored) {}
+                    return true;
+                }
+                return false;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            System.err.println("[ERRO DB] Falha ao excluir cliente #" + clienteId + ": " + e.getMessage());
+            return false;
+        }
+    }
 }
+

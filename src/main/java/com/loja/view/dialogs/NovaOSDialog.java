@@ -720,141 +720,167 @@ public class NovaOSDialog extends JDialog {
     }
 
     private void salvarOS() {
-        EquipamentoDialog.ClienteComboItem clienteItem = (EquipamentoDialog.ClienteComboItem) cbClientes.getSelectedItem();
-        if (clienteItem == null) {
-            JOptionPane.showMessageDialog(this, "Selecione ou cadastre um cliente!", "Aviso", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        EquipamentoComboItem equipItem = (EquipamentoComboItem) cbEquipamentos.getSelectedItem();
-        if (equipItem == null) {
-            JOptionPane.showMessageDialog(this, "Selecione ou cadastre um equipamento para este cliente!", "Aviso", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        String defeito = txtProblema.getText().trim();
-        if (defeito.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "O relato do defeito/problema é obrigatório!", "Aviso", JOptionPane.WARNING_MESSAGE);
-            txtProblema.requestFocus();
-            return;
-        }
-
-        String obs = txtObservacoes.getText().trim();
-
-        // Montar checklist textual específico e rico do tipo ativo
-        String checklist;
-        switch (tipoChecklistAtual) {
-            case "CONSOLE" -> checklist = String.format(
-                    "• Categoria: Console de Vídeo Game\n" +
-                    "• Liga / Led Status: %s | Saída HDMI/Vídeo: %s\n" +
-                    "• Armazenamento Interno: %s [Capacidade/Modelo: %s]\n" +
-                    "• Leitor de Disco: %s | Conexão Controles: %s\n" +
-                    "• Refrigeração/Cooler: %s | Lacre de Fábrica: %s\n" +
-                    "• Obs. Vistoria: %s",
-                    conLiga.getSelectedItem(), conVideo.getSelectedItem(),
-                    conArmazenamentoStatus.getSelectedItem(), conArmazenamentoDetalhe.getText().trim(),
-                    conLeitor.getSelectedItem(), conControle.getSelectedItem(),
-                    conCooler.getSelectedItem(), conLacre.getSelectedItem(),
-                    conOutros.getText().trim()
-            );
-            case "DESKTOP" -> checklist = String.format(
-                    "• Categoria: Computador (Desktop)\n" +
-                    "• Computador Liga: %s | Gera Vídeo: %s\n" +
-                    "• Placa de Vídeo Dedicada: %s | Gabinete / Limpeza: %s\n" +
-                    "• Obs. Vistoria: %s",
-                    dtLiga.getSelectedItem(), dtVideo.getSelectedItem(),
-                    dtGpu.getSelectedItem(), dtGabinete.getSelectedItem(),
-                    dtOutros.getText().trim()
-            );
-            case "SMARTPHONE" -> checklist = String.format(
-                    "• Categoria: Celular / Smartphone\n" +
-                    "• Liga / Sinal: %s | Display e Touchscreen: %s\n" +
-                    "• Conector de Carga: %s | Saúde da Bateria: %s\n" +
-                    "• Câmeras (Frontal/Traseira): %s | Áudio e Microfone: %s\n" +
-                    "• Conectividade / Chip: %s | Biometria / Face ID: %s\n" +
-                    "• Obs. Vistoria: %s",
-                    celLiga.getSelectedItem(), celTouch.getSelectedItem(),
-                    celConector.getSelectedItem(), celBateria.getSelectedItem(),
-                    celCameras.getSelectedItem(), celAudio.getSelectedItem(),
-                    celRede.getSelectedItem(), celBiometria.getSelectedItem(),
-                    celOutros.getText().trim()
-            );
-            case "TABLET" -> checklist = String.format(
-                    "• Categoria: Tablet\n" +
-                    "• Liga / Sinal: %s | Display e Touchscreen: %s\n" +
-                    "• Conector Carga / Bateria: %s | Câmeras e Som: %s\n" +
-                    "• Botões Físicos: %s | Estrutura / Carcaça: %s\n" +
-                    "• Obs. Vistoria: %s",
-                    tabLiga.getSelectedItem(), tabTouch.getSelectedItem(),
-                    tabCarga.getSelectedItem(), tabCameras.getSelectedItem(),
-                    tabBotoes.getSelectedItem(), tabEstrutura.getSelectedItem(),
-                    tabOutros.getText().trim()
-            );
-            case "IMPRESSORA" -> checklist = String.format(
-                    "• Categoria: Impressora / Multifuncional\n" +
-                    "• Impressora Liga: %s | Tracionador de Papel: %s\n" +
-                    "• Sistema de Tinta / Toner: %s\n" +
-                    "• Obs. Vistoria: %s",
-                    impLiga.getSelectedItem(), impPapel.getSelectedItem(),
-                    impTinta.getSelectedItem(), impOutros.getText().trim()
-            );
-            case "MONITOR" -> checklist = String.format(
-                    "• Categoria: Monitor / Tela\n" +
-                    "• Liga / Led de Energia: %s | Imagem e Painel: %s\n" +
-                    "• Entradas de Vídeo (HDMI/VGA/DP): %s | Botões de Controle: %s\n" +
-                    "• Obs. Vistoria: %s",
-                    monLiga.getSelectedItem(), monPainel.getSelectedItem(),
-                    monPortas.getSelectedItem(), monBotoes.getSelectedItem(),
-                    monOutros.getText().trim()
-            );
-            case "OUTROS" -> checklist = String.format(
-                    "• Categoria: Equipamento Genérico / Outro\n" +
-                    "• Liga / Alimentação: %s | Funcionamento Principal: %s\n" +
-                    "• Estado Físico Geral: %s | Conectores / Cabos: %s\n" +
-                    "• Obs. Vistoria: %s",
-                    outLiga.getSelectedItem(), outFuncao.getSelectedItem(),
-                    outFisico.getSelectedItem(), outConectores.getSelectedItem(),
-                    outOutros.getText().trim()
-            );
-            default -> checklist = String.format(
-                    "• Categoria: Notebook\n" +
-                    "• Notebook Liga: %s | Imagem / Display: %s\n" +
-                    "• Teclado & Touchpad: %s | Carcaça & Dobradiças: %s\n" +
-                    "• Refrigeração & Ruído: %s\n" +
-                    "• Obs. Vistoria: %s",
-                    nbLiga.getSelectedItem(), nbTela.getSelectedItem(),
-                    nbTeclado.getSelectedItem(), nbCarcaca.getSelectedItem(),
-                    nbCooler.getSelectedItem(),
-                    nbOutros.getText().trim()
-            );
-        }
-
-        OrdemServico os = new OrdemServico(clienteItem.id, equipItem.id, defeito, checklist, obs);
-        if (osDAO.abrirOS(os)) {
-            this.salvo = true;
-            this.osCriada = os;
-            JOptionPane.showMessageDialog(this, 
-                    "Ordem de Serviço #" + os.getId() + " aberta com sucesso!\nCliente: " + clienteItem.nome, 
-                    "OS Gerada com Sucesso", JOptionPane.INFORMATION_MESSAGE);
-
-            int optFoto = JOptionPane.showConfirmDialog(this,
-                    "Deseja anexar fotos da máquina / avarias agora?\n(Ex: dobradiça quebrada, carcaça riscada, tela trincada)",
-                    "Anexar Fotos da OS #" + os.getId(), JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-            if (optFoto == JOptionPane.YES_OPTION) {
-                GerenciadorFotosOSDialog fotoDialog = new GerenciadorFotosOSDialog(this, os.getId(), new OSFotoDAO());
-                fotoDialog.setVisible(true);
+        try {
+            EquipamentoDialog.ClienteComboItem clienteItem = (EquipamentoDialog.ClienteComboItem) cbClientes.getSelectedItem();
+            if (clienteItem == null) {
+                JOptionPane.showMessageDialog(this, "Selecione ou cadastre um cliente antes de gerar a Ordem de Serviço!", "Aviso", JOptionPane.WARNING_MESSAGE);
+                return;
             }
 
-            int opt = JOptionPane.showConfirmDialog(this,
-                    "Deseja gerar o Comprovante de Entrada do Equipamento em PDF agora?\n(Termo de Deixada para o cliente assinar na loja)",
-                    "Comprovante de Entrada", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-            if (opt == JOptionPane.YES_OPTION) {
-                gerarComprovanteEntradaPDF(os, clienteItem.id, equipItem.id);
+            EquipamentoComboItem equipItem = (EquipamentoComboItem) cbEquipamentos.getSelectedItem();
+            if (equipItem == null) {
+                JOptionPane.showMessageDialog(this, "Selecione ou cadastre um equipamento para este cliente antes de continuar!", "Aviso", JOptionPane.WARNING_MESSAGE);
+                return;
             }
 
-            dispose();
-        } else {
-            JOptionPane.showMessageDialog(this, "Falha ao gravar a OS no banco MySQL!", "Erro", JOptionPane.ERROR_MESSAGE);
+            String defeito = txtProblema.getText().trim();
+            if (defeito.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "O relato do defeito/problema é obrigatório!", "Aviso", JOptionPane.WARNING_MESSAGE);
+                txtProblema.requestFocus();
+                return;
+            }
+
+            String obs = txtObservacoes.getText().trim();
+
+            // Montar checklist textual específico e rico do tipo ativo
+            String checklist;
+            switch (tipoChecklistAtual) {
+                case "CONSOLE" -> checklist = String.format(
+                        "• Categoria: Console de Vídeo Game\n" +
+                        "• Liga / Led Status: %s | Saída HDMI/Vídeo: %s\n" +
+                        "• Armazenamento Interno: %s [Capacidade/Modelo: %s]\n" +
+                        "• Leitor de Disco: %s | Conexão Controles: %s\n" +
+                        "• Refrigeração/Cooler: %s | Lacre de Fábrica: %s\n" +
+                        "• Obs. Vistoria: %s",
+                        conLiga != null ? conLiga.getSelectedItem() : "N/A",
+                        conVideo != null ? conVideo.getSelectedItem() : "N/A",
+                        conArmazenamentoStatus != null ? conArmazenamentoStatus.getSelectedItem() : "N/A",
+                        conArmazenamentoDetalhe != null ? conArmazenamentoDetalhe.getText().trim() : "",
+                        conLeitor != null ? conLeitor.getSelectedItem() : "N/A",
+                        conControle != null ? conControle.getSelectedItem() : "N/A",
+                        conCooler != null ? conCooler.getSelectedItem() : "N/A",
+                        conLacre != null ? conLacre.getSelectedItem() : "N/A",
+                        conOutros != null ? conOutros.getText().trim() : ""
+                );
+                case "DESKTOP" -> checklist = String.format(
+                        "• Categoria: Computador (Desktop)\n" +
+                        "• Computador Liga: %s | Gera Vídeo: %s\n" +
+                        "• Placa de Vídeo Dedicada: %s | Gabinete / Limpeza: %s\n" +
+                        "• Obs. Vistoria: %s",
+                        dtLiga != null ? dtLiga.getSelectedItem() : "N/A",
+                        dtVideo != null ? dtVideo.getSelectedItem() : "N/A",
+                        dtGpu != null ? dtGpu.getSelectedItem() : "N/A",
+                        dtGabinete != null ? dtGabinete.getSelectedItem() : "N/A",
+                        dtOutros != null ? dtOutros.getText().trim() : ""
+                );
+                case "SMARTPHONE" -> checklist = String.format(
+                        "• Categoria: Celular / Smartphone\n" +
+                        "• Liga / Sinal: %s | Display e Touchscreen: %s\n" +
+                        "• Conector de Carga: %s | Saúde da Bateria: %s\n" +
+                        "• Câmeras (Frontal/Traseira): %s | Áudio e Microfone: %s\n" +
+                        "• Conectividade / Chip: %s | Biometria / Face ID: %s\n" +
+                        "• Obs. Vistoria: %s",
+                        celLiga != null ? celLiga.getSelectedItem() : "N/A",
+                        celTouch != null ? celTouch.getSelectedItem() : "N/A",
+                        celConector != null ? celConector.getSelectedItem() : "N/A",
+                        celBateria != null ? celBateria.getSelectedItem() : "N/A",
+                        celCameras != null ? celCameras.getSelectedItem() : "N/A",
+                        celAudio != null ? celAudio.getSelectedItem() : "N/A",
+                        celRede != null ? celRede.getSelectedItem() : "N/A",
+                        celBiometria != null ? celBiometria.getSelectedItem() : "N/A",
+                        celOutros != null ? celOutros.getText().trim() : ""
+                );
+                case "TABLET" -> checklist = String.format(
+                        "• Categoria: Tablet\n" +
+                        "• Liga / Sinal: %s | Display e Touchscreen: %s\n" +
+                        "• Conector Carga / Bateria: %s | Câmeras e Som: %s\n" +
+                        "• Botões Físicos: %s | Estrutura / Carcaça: %s\n" +
+                        "• Obs. Vistoria: %s",
+                        tabLiga != null ? tabLiga.getSelectedItem() : "N/A",
+                        tabTouch != null ? tabTouch.getSelectedItem() : "N/A",
+                        tabCarga != null ? tabCarga.getSelectedItem() : "N/A",
+                        tabCameras != null ? tabCameras.getSelectedItem() : "N/A",
+                        tabBotoes != null ? tabBotoes.getSelectedItem() : "N/A",
+                        tabEstrutura != null ? tabEstrutura.getSelectedItem() : "N/A",
+                        tabOutros != null ? tabOutros.getText().trim() : ""
+                );
+                case "IMPRESSORA" -> checklist = String.format(
+                        "• Categoria: Impressora / Multifuncional\n" +
+                        "• Impressora Liga: %s | Tracionador de Papel: %s\n" +
+                        "• Sistema de Tinta / Toner: %s\n" +
+                        "• Obs. Vistoria: %s",
+                        impLiga != null ? impLiga.getSelectedItem() : "N/A",
+                        impPapel != null ? impPapel.getSelectedItem() : "N/A",
+                        impTinta != null ? impTinta.getSelectedItem() : "N/A",
+                        impOutros != null ? impOutros.getText().trim() : ""
+                );
+                case "MONITOR" -> checklist = String.format(
+                        "• Categoria: Monitor / Tela\n" +
+                        "• Liga / Led de Energia: %s | Imagem e Painel: %s\n" +
+                        "• Entradas de Vídeo (HDMI/VGA/DP): %s | Botões de Controle: %s\n" +
+                        "• Obs. Vistoria: %s",
+                        monLiga != null ? monLiga.getSelectedItem() : "N/A",
+                        monPainel != null ? monPainel.getSelectedItem() : "N/A",
+                        monPortas != null ? monPortas.getSelectedItem() : "N/A",
+                        monBotoes != null ? monBotoes.getSelectedItem() : "N/A",
+                        monOutros != null ? monOutros.getText().trim() : ""
+                );
+                case "OUTROS" -> checklist = String.format(
+                        "• Categoria: Equipamento Genérico / Outro\n" +
+                        "• Liga / Alimentação: %s | Funcionamento Principal: %s\n" +
+                        "• Estado Físico Geral: %s | Conectores / Cabos: %s\n" +
+                        "• Obs. Vistoria: %s",
+                        outLiga != null ? outLiga.getSelectedItem() : "N/A",
+                        outFuncao != null ? outFuncao.getSelectedItem() : "N/A",
+                        outFisico != null ? outFisico.getSelectedItem() : "N/A",
+                        outConectores != null ? outConectores.getSelectedItem() : "N/A",
+                        outOutros != null ? outOutros.getText().trim() : ""
+                );
+                default -> checklist = String.format(
+                        "• Categoria: Notebook\n" +
+                        "• Notebook Liga: %s | Imagem / Display: %s\n" +
+                        "• Teclado & Touchpad: %s | Carcaça & Dobradiças: %s\n" +
+                        "• Refrigeração & Ruído: %s\n" +
+                        "• Obs. Vistoria: %s",
+                        nbLiga != null ? nbLiga.getSelectedItem() : "N/A",
+                        nbTela != null ? nbTela.getSelectedItem() : "N/A",
+                        nbTeclado != null ? nbTeclado.getSelectedItem() : "N/A",
+                        nbCarcaca != null ? nbCarcaca.getSelectedItem() : "N/A",
+                        nbCooler != null ? nbCooler.getSelectedItem() : "N/A",
+                        nbOutros != null ? nbOutros.getText().trim() : ""
+                );
+            }
+
+            OrdemServico os = new OrdemServico(clienteItem.id, equipItem.id, defeito, checklist, obs);
+            if (osDAO.abrirOS(os)) {
+                this.salvo = true;
+                this.osCriada = os;
+                JOptionPane.showMessageDialog(this, 
+                        "Ordem de Serviço #" + os.getId() + " aberta com sucesso!\nCliente: " + clienteItem.nome, 
+                        "OS Gerada com Sucesso", JOptionPane.INFORMATION_MESSAGE);
+
+                int optFoto = JOptionPane.showConfirmDialog(this,
+                        "Deseja anexar fotos da máquina / avarias agora?\n(Ex: dobradiça quebrada, carcaça riscada, tela trincada)",
+                        "Anexar Fotos da OS #" + os.getId(), JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+                if (optFoto == JOptionPane.YES_OPTION) {
+                    GerenciadorFotosOSDialog fotoDialog = new GerenciadorFotosOSDialog(this, os.getId(), new OSFotoDAO());
+                    fotoDialog.setVisible(true);
+                }
+
+                int opt = JOptionPane.showConfirmDialog(this,
+                        "Deseja gerar o Comprovante de Entrada do Equipamento em PDF agora?\n(Termo de Deixada para o cliente assinar na loja)",
+                        "Comprovante de Entrada", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+                if (opt == JOptionPane.YES_OPTION) {
+                    gerarComprovanteEntradaPDF(os, clienteItem.id, equipItem.id);
+                }
+
+                dispose();
+            } else {
+                JOptionPane.showMessageDialog(this, "Falha ao gravar a OS no banco MySQL!\nVerifique se o banco de dados está online e com permissão de gravação.", "Erro", JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Ocorreu um erro ao processar a abertura da OS:\n" + ex.getMessage(), "Erro Inesperado", JOptionPane.ERROR_MESSAGE);
         }
     }
 

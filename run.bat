@@ -145,6 +145,10 @@ if exist sources.txt del sources.txt
 
 if %COMP_STATUS% neq 0 goto :erro_compilacao
 
+if exist "src\main\resources" (
+    xcopy /E /I /Y "src\main\resources\*" "target\classes\" > nul
+)
+
 echo [SISTEMA] Iniciando a aplicacao...
 echo ====================================================
 "%JAVA_EXE%" -cp "%CLASSPATH%" com.loja.app.Main

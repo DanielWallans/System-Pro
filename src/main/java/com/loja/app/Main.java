@@ -52,51 +52,82 @@ public class Main {
             System.err.println("[AVISO] Não foi possível carregar o tema FlatLaf: " + ex.getMessage());
         }
 
-        // 2. Conectar e inicializar banco de dados MySQL
-        boolean dbOk = ConnectionFactory.testarConexao();
-        if (!dbOk) {
-            // Se a conexão falhar ou se for o primeiro acesso em um novo PC/servidor, exibe
-            // o painel de configuração
+        // 2. Exibir Splash Screen com logo transparente e barra de progresso animada
+        com.loja.view.SplashScreen splash = com.loja.view.SplashScreen.mostrar();
+        splash.setStatus("Carregando módulos visuais...", 15);
+
+        // Executar inicialização em thread separada para manter a animação fluida a 60 FPS
+        new Thread(() -> {
             try {
-                ConfigBancoDialog dlg = new ConfigBancoDialog(null);
-                dlg.setVisible(true);
-                dbOk = dlg.isConfiguradoComSucesso();
+                Thread.sleep(150);
+
+                // Conectar e inicializar banco de dados MySQL
+                splash.setStatus("Conectando ao banco de dados MySQL...", 35);
+                boolean dbOk = ConnectionFactory.testarConexao();
+
+                if (dbOk) {
+                    splash.setStatus("Verificando estrutura e tabelas...", 60);
+                    ConnectionFactory.criarTabela();
+                    com.loja.service.AutoBackupService.getInstance().iniciar();
+                } else {
+                    splash.setStatus("Aguardando configuração do servidor...", 60);
+                }
+
+                splash.setStatus("Inicializando serviços do sistema...", 85);
+                CaixaDAO caixaDAO = new CaixaDAO();
+                CaixaService caixaService = new CaixaService();
+                ProdutoDAO produtoDAO = new ProdutoDAO();
+                ClienteDAO clienteDAO = new ClienteDAO();
+                EquipamentoDAO equipamentoDAO = new EquipamentoDAO();
+                OrdemServicoDAO osDAO = new OrdemServicoDAO();
+                UsuarioDAO usuarioDAO = new UsuarioDAO();
+
+                if (dbOk) {
+                    caixaService.abrirCaixa(100.00);
+                }
+
+                splash.setStatus("Sistema pronto!", 100);
+                Thread.sleep(300); // Breve momento para o usuário ver a barra completa em 100%
+
+                SwingUtilities.invokeLater(() -> {
+                    splash.fechar();
+
+                    boolean statusDb = dbOk;
+                    if (!statusDb) {
+                        // Se a conexão falhar ou for o primeiro acesso, exibe painel de configuração
+                        try {
+                            ConfigBancoDialog dlg = new ConfigBancoDialog(null);
+                            dlg.setVisible(true);
+                            statusDb = dlg.isConfiguradoComSucesso();
+                            if (statusDb) {
+                                ConnectionFactory.criarTabela();
+                                com.loja.service.AutoBackupService.getInstance().iniciar();
+                                caixaService.abrirCaixa(100.00);
+                            }
+                        } catch (Exception ex) {
+                            System.err.println("[ERRO] Ao abrir painel de configuração: " + ex.getMessage());
+                        }
+                    }
+
+                    final boolean isDbConectado = statusDb;
+
+                    // 3. Exibir Tela de Autenticação / Login
+                    LoginDialog login = new LoginDialog(null, usuarioDAO);
+                    login.setVisible(true);
+
+                    if (login.isAutenticado()) {
+                        MainFrame frame = new MainFrame(clienteDAO, equipamentoDAO, osDAO, produtoDAO, caixaDAO, caixaService,
+                                usuarioDAO, isDbConectado);
+                        frame.setVisible(true);
+                    } else {
+                        System.exit(0);
+                    }
+                });
+
             } catch (Exception ex) {
-                System.err.println("[ERRO] Ao abrir painel de configuração: " + ex.getMessage());
+                ex.printStackTrace();
+                SwingUtilities.invokeLater(() -> splash.fechar());
             }
-        }
-
-        if (dbOk) {
-            ConnectionFactory.criarTabela();
-            com.loja.service.AutoBackupService.getInstance().iniciar();
-        } else {
-            System.err.println("[AVISO] Sistema iniciado sem conexão ativa com o banco MySQL.");
-        }
-
-        CaixaDAO caixaDAO = new CaixaDAO();
-        CaixaService caixaService = new CaixaService();
-        ProdutoDAO produtoDAO = new ProdutoDAO();
-        ClienteDAO clienteDAO = new ClienteDAO();
-        EquipamentoDAO equipamentoDAO = new EquipamentoDAO();
-        OrdemServicoDAO osDAO = new OrdemServicoDAO();
-        UsuarioDAO usuarioDAO = new UsuarioDAO();
-
-        caixaService.abrirCaixa(100.00);
-
-        final boolean isDbConectado = dbOk;
-
-        // 3. Exibir Tela de Autenticação / Login
-        SwingUtilities.invokeLater(() -> {
-            LoginDialog login = new LoginDialog(null, usuarioDAO);
-            login.setVisible(true);
-
-            if (login.isAutenticado()) {
-                MainFrame frame = new MainFrame(clienteDAO, equipamentoDAO, osDAO, produtoDAO, caixaDAO, caixaService,
-                        usuarioDAO, isDbConectado);
-                frame.setVisible(true);
-            } else {
-                System.exit(0);
-            }
-        });
+        }).start();
     }
 }

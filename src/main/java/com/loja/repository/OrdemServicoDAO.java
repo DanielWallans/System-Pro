@@ -453,4 +453,57 @@ public class OrdemServicoDAO {
     public boolean adicionarEventoHistoricoManual(int osId, String status, String observacao) {
         return registrarHistorico(osId, status, observacao, LocalDateTime.now());
     }
+
+    public static void excluirOSComDependencias(Connection conn, int osId) throws SQLException {
+        try (PreparedStatement s = conn.prepareStatement("DELETE FROM os_fotos WHERE os_id = ?")) {
+            s.setInt(1, osId);
+            s.executeUpdate();
+        }
+        try (PreparedStatement s = conn.prepareStatement("DELETE FROM os_historico WHERE os_id = ?")) {
+            s.setInt(1, osId);
+            s.executeUpdate();
+        }
+        try (PreparedStatement s = conn.prepareStatement("DELETE FROM os_pecas WHERE os_id = ?")) {
+            s.setInt(1, osId);
+            s.executeUpdate();
+        }
+        try (PreparedStatement s = conn.prepareStatement("DELETE FROM os_servicos WHERE os_id = ?")) {
+            s.setInt(1, osId);
+            s.executeUpdate();
+        }
+        try (PreparedStatement s = conn.prepareStatement("UPDATE nota_fiscal SET os_id = NULL WHERE os_id = ?")) {
+            s.setInt(1, osId);
+            s.executeUpdate();
+        }
+        try (PreparedStatement s = conn.prepareStatement("UPDATE caixa_movimento SET os_id = NULL WHERE os_id = ?")) {
+            s.setInt(1, osId);
+            s.executeUpdate();
+        }
+        try (PreparedStatement s = conn.prepareStatement("DELETE FROM ordem_servico WHERE id = ?")) {
+            s.setInt(1, osId);
+            s.executeUpdate();
+        }
+    }
+
+    public boolean excluir(int osId) {
+        try (Connection conn = ConnectionFactory.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                excluirOSComDependencias(conn, osId);
+                conn.commit();
+                System.out.println("[DB] Ordem de Serviço #" + osId + " excluída com sucesso.");
+                try {
+                    com.loja.service.AutoBackupService.getInstance().notificarAcaoCritica("Exclusão OS #" + osId);
+                } catch (Exception ignored) {}
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            System.err.println("[ERRO DB] Falha ao excluir OS #" + osId + ": " + e.getMessage());
+            return false;
+        }
+    }
 }
+

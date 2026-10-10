@@ -55,6 +55,11 @@ cmd /c "dir /s /b ..\src\*.java > sources.txt"
 & $javac --release 21 -d staging -cp "..\mysql-connector-j-8.3.0.jar;..\flatlaf-3.5.4.jar;..\openpdf-1.3.40.jar" "@sources.txt"
 if (Test-Path "sources.txt") { Remove-Item "sources.txt" -Force }
 
+if (Test-Path "..\src\main\resources") {
+    Write-Host "[INFO] Copiando arquivos de recursos..." -ForegroundColor Cyan
+    Copy-Item -Path "..\src\main\resources\*" -Destination "staging" -Recurse -Force
+}
+
 Write-Host "[2/5] Extraindo bibliotecas para Fat-JAR..." -ForegroundColor Cyan
 Set-Location -Path "staging"
 tar -xf "..\..\mysql-connector-j-8.3.0.jar"
@@ -72,8 +77,14 @@ Copy-Item "aplicacao_pronta\SystemPro.jar" "aplicacao_pronta\SistemaLoja.jar" -F
 cmd /c "rd /s /q staging"
 
 Write-Host "[4/5] Compilando executavel nativo SystemPro.exe..." -ForegroundColor Cyan
-& $csc /nologo /target:winexe /out:"aplicacao_pronta\SystemPro.exe" Launcher.cs
+$iconArg = if (Test-Path "icone.ico") { "/win32icon:icone.ico" } else { "" }
+if ($iconArg -ne "") {
+    & $csc /nologo /target:winexe $iconArg /out:"aplicacao_pronta\SystemPro.exe" Launcher.cs
+} else {
+    & $csc /nologo /target:winexe /out:"aplicacao_pronta\SystemPro.exe" Launcher.cs
+}
 Copy-Item "aplicacao_pronta\SystemPro.exe" "aplicacao_pronta\SistemaLoja.exe" -Force
+if (Test-Path "icone.ico") { Copy-Item "icone.ico" "aplicacao_pronta\icone.ico" -Force }
 
 if (Test-Path $iscc) {
     Write-Host "[5/5] Compilando Setup.exe com Inno Setup (v$appVersion)..." -ForegroundColor Cyan

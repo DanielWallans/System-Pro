@@ -32,6 +32,7 @@ public class ConfigBancoDialog extends JDialog {
         setResizable(false);
         setLayout(new BorderLayout());
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        com.loja.util.LogoUtil.aplicarIconeJanela(this);
 
         initComponents();
         carregarDadosAtuais();

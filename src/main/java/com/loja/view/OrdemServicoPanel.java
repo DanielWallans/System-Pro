@@ -37,6 +37,7 @@ public class OrdemServicoPanel extends JPanel {
     private JButton btnNovaOS;
     private JButton btnMontarOrcamento;
     private JButton btnFinalizarOS;
+    private JButton btnExcluirOS;
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private final OrdemServicoDAO osDAO;
@@ -106,6 +107,8 @@ public class OrdemServicoPanel extends JPanel {
         this.btnMontarOrcamento = UIComponents.criarBotaoSecundario("Montar Orçamento", this::abrirMontarOrcamentoSelecionado);
         this.btnFinalizarOS = UIComponents.criarBotaoPrimario("Finalizar OS [F4]", this::abrirFinalizarOSSelecionada);
         JButton btnDetalhes = UIComponents.criarBotaoSecundario("Ver Detalhes", this::abrirDetalhesOSSelecionada);
+        this.btnExcluirOS = UIComponents.criarBotaoSecundario("Excluir OS", this::excluirOSSelecionada);
+        this.btnExcluirOS.setToolTipText("Excluir permanentemente a OS selecionada (Apenas Administrador)");
         JButton btnAtualizar = UIComponents.criarBotaoSecundario("Atualizar [F5]", this::recarregarTabela);
 
         getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke(KeyEvent.VK_F4, 0),
@@ -129,6 +132,7 @@ public class OrdemServicoPanel extends JPanel {
         JButton btnFotos = UIComponents.criarBotaoSecundario("Fotos da OS", this::abrirFotosOSSelecionada);
         pnlAcoes.add(btnFotos);
         pnlAcoes.add(btnDetalhes);
+        pnlAcoes.add(this.btnExcluirOS);
         pnlAcoes.add(btnAtualizar);
 
         topPanel.add(pnlTitulo, BorderLayout.WEST);
@@ -437,6 +441,7 @@ public class OrdemServicoPanel extends JPanel {
         Usuario user = SessaoUsuario.getInstancia().getUsuarioLogado();
         boolean canMontarOrcamento = user == null || user.isAdmin() || user.isTecnico();
         boolean canAbrirOS = user == null || user.isAdmin() || user.isAtendente();
+        boolean isAdmin = user != null && user.isAdmin();
 
         if (btnMontarOrcamento != null) {
             btnMontarOrcamento.setVisible(canMontarOrcamento);
@@ -446,6 +451,45 @@ public class OrdemServicoPanel extends JPanel {
         }
         if (btnFinalizarOS != null) {
             btnFinalizarOS.setVisible(true);
+        }
+        if (btnExcluirOS != null) {
+            btnExcluirOS.setVisible(isAdmin);
+        }
+    }
+
+    private void excluirOSSelecionada() {
+        Usuario user = SessaoUsuario.getInstancia().getUsuarioLogado();
+        if (user == null || !user.isAdmin()) {
+            JOptionPane.showMessageDialog(this,
+                    "Acesso Restrito!\nApenas usuários com perfil Administrador possuem permissão para excluir Ordens de Serviço.",
+                    "Acesso Negado", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int row = tabela.getSelectedRow();
+        if (row < 0) {
+            JOptionPane.showMessageDialog(this, "Selecione uma Ordem de Serviço na tabela para excluir!", "Aviso",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int osId = (int) tableModel.getValueAt(row, 0);
+
+        int opt = JOptionPane.showConfirmDialog(this,
+                "ATENÇÃO: Deseja realmente excluir permanentemente a Ordem de Serviço #" + osId + "?\n\n" +
+                "Esta ação apagará todas as peças, serviços, fotos e histórico vinculados a esta OS.\n" +
+                "Esta operação não poderá ser desfeita!",
+                "Confirmar Exclusão de OS", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+        if (opt == JOptionPane.YES_OPTION) {
+            boolean sucesso = osDAO.excluir(osId);
+            if (sucesso) {
+                JOptionPane.showMessageDialog(this, "Ordem de Serviço #" + osId + " excluída com sucesso!", "Sucesso",
+                        JOptionPane.INFORMATION_MESSAGE);
+                recarregarTabela();
+            } else {
+                JOptionPane.showMessageDialog(this, "Erro ao excluir a Ordem de Serviço #" + osId + " do banco de dados.",
+                        "Erro", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 }

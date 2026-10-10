@@ -1,5 +1,6 @@
 package com.loja.view.dialogs;
 
+import com.loja.model.SessaoUsuario;
 import com.loja.model.Usuario;
 import com.loja.repository.UsuarioDAO;
 
@@ -54,18 +55,22 @@ public class GerenciadorUsuariosDialog extends JDialog {
         JButton btnEditar = new JButton("Editar Usuário");
         JButton btnAlterarSenha = new JButton("Trocar Senha");
         JButton btnAlternarStatus = new JButton("Ativar / Inativar");
+        JButton btnExcluir = new JButton("Excluir Usuário");
+        btnExcluir.setToolTipText("Excluir usuário permanentemente (Apenas Administrador)");
         JButton btnAtualizar = new JButton("Atualizar Lista");
 
         btnNovo.addActionListener(e -> abrirFormUsuario(null));
         btnEditar.addActionListener(e -> editarSelecionado());
         btnAlterarSenha.addActionListener(e -> alterarSenhaSelecionado());
         btnAlternarStatus.addActionListener(e -> alternarStatusSelecionado());
+        btnExcluir.addActionListener(e -> excluirSelecionado());
         btnAtualizar.addActionListener(e -> recarregarTabela());
 
         pnlBarraAcoes.add(btnNovo);
         pnlBarraAcoes.add(btnEditar);
         pnlBarraAcoes.add(btnAlterarSenha);
         pnlBarraAcoes.add(btnAlternarStatus);
+        pnlBarraAcoes.add(btnExcluir);
         pnlBarraAcoes.add(btnAtualizar);
         add(pnlBarraAcoes, BorderLayout.SOUTH);
 
@@ -185,6 +190,43 @@ public class GerenciadorUsuariosDialog extends JDialog {
         boolean ok = usuarioDAO.alternarStatus(u.getId(), novoStatus);
         if (ok) {
             recarregarTabela();
+        }
+    }
+
+    private void excluirSelecionado() {
+        Usuario logado = SessaoUsuario.getInstancia().getUsuarioLogado();
+        if (logado == null || !logado.isAdmin()) {
+            JOptionPane.showMessageDialog(this,
+                    "Acesso Restrito!\nApenas usuários com perfil Administrador podem excluir outros usuários.",
+                    "Acesso Negado", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Usuario u = getUsuarioSelecionado();
+        if (u == null) return;
+
+        if (logado.getId() == u.getId()) {
+            JOptionPane.showMessageDialog(this,
+                    "Você não pode excluir o seu próprio usuário enquanto estiver conectado ao sistema!",
+                    "Operação Não Permitida", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int opt = JOptionPane.showConfirmDialog(this,
+                "Deseja realmente excluir permanentemente o usuário:\n\n" +
+                "#" + u.getId() + " - " + u.getNome() + " (" + u.getLogin() + ")?\n\nEsta operação não pode ser desfeita!",
+                "Confirmar Exclusão de Usuário", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+        if (opt == JOptionPane.YES_OPTION) {
+            boolean ok = usuarioDAO.excluir(u.getId());
+            if (ok) {
+                JOptionPane.showMessageDialog(this, "Usuário #" + u.getId() + " excluído com sucesso!", "Sucesso",
+                        JOptionPane.INFORMATION_MESSAGE);
+                recarregarTabela();
+            } else {
+                JOptionPane.showMessageDialog(this, "Erro ao excluir o usuário do banco de dados.", "Erro",
+                        JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 }

@@ -24,6 +24,7 @@ OutputBaseFilename=SystemPro_Setup_v{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=icone.ico
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
@@ -38,12 +39,13 @@ Name: "{app}"; Permissions: users-modify
 ; Copia o executável nativo e o JAR com todas as dependências embutidas
 Source: "aplicacao_pronta\SystemPro.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "aplicacao_pronta\SystemPro.jar"; DestDir: "{app}"; Flags: ignoreversion
+Source: "icone.ico"; DestDir: "{app}"; Flags: ignoreversion
 ; Inclui a JRE 21 embutida para rodar 100% offline em qualquer computador sem precisar instalar Java!
 Source: "aplicacao_pronta\jre\*"; DestDir: "{app}\jre"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icone.ico"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; IconFilename: "{app}\icone.ico"
 
 [Run]
 Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Filename: "{app}\{#MyAppExeName}"; Flags: nowait postinstall skipifsilent

@@ -26,10 +26,11 @@ public class LoginDialog extends JDialog {
         super(owner, "System Pro • Autenticação de Usuário", true);
         this.usuarioDAO = usuarioDAO;
 
-        setSize(440, 545);
+        setSize(440, 570);
         setLocationRelativeTo(owner);
         setResizable(false);
         setLayout(new BorderLayout());
+        com.loja.util.LogoUtil.aplicarIconeJanela(this);
 
         initComponents();
     }
@@ -64,6 +65,16 @@ public class LoginDialog extends JDialog {
         JPanel pnlHeader = new JPanel(new BorderLayout(0, 4));
         pnlHeader.setOpaque(false);
 
+        ImageIcon iconeLogin = com.loja.util.LogoUtil.getIconeRedimensionado(64, 64);
+        if (iconeLogin != null) {
+            JLabel lblLogoImg = new JLabel(iconeLogin, SwingConstants.CENTER);
+            lblLogoImg.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
+            pnlHeader.add(lblLogoImg, BorderLayout.NORTH);
+        }
+
+        JPanel pnlTextoTit = new JPanel(new GridLayout(2, 1, 0, 2));
+        pnlTextoTit.setOpaque(false);
+
         JLabel lblTit = new JLabel("SYSTEM PRO", SwingConstants.CENTER);
         lblTit.setFont(new Font("Segoe UI", Font.BOLD, 20));
         lblTit.setForeground(t.getTextPrimary());
@@ -72,8 +83,9 @@ public class LoginDialog extends JDialog {
         lblSub.setFont(UITheme.FONT_SMALL);
         lblSub.setForeground(t.getTextSecondary());
 
-        pnlHeader.add(lblTit, BorderLayout.NORTH);
-        pnlHeader.add(lblSub, BorderLayout.SOUTH);
+        pnlTextoTit.add(lblTit);
+        pnlTextoTit.add(lblSub);
+        pnlHeader.add(pnlTextoTit, BorderLayout.CENTER);
         card.add(pnlHeader, BorderLayout.NORTH);
 
         // 2. Formulário Central

@@ -147,6 +147,12 @@ set "COMP_ERR=%ERRORLEVEL%"
 if exist sources.txt del sources.txt
 if %COMP_ERR% neq 0 goto :compilation_failed
 
+:: Copiar arquivos de recursos (icones, logos, imagens)
+if exist "..\src\main\resources" (
+    echo [INFO] Copiando arquivos de recursos (icones, imagens)...
+    xcopy /E /I /Y "..\src\main\resources\*" "staging\" > nul
+)
+
 echo [2/5] Extraindo bibliotecas para criar o pacote unico (Fat-JAR)...
 cd staging
 tar -xf "%MYSQL_JAR%"
@@ -166,9 +172,12 @@ copy /Y "aplicacao_pronta\SystemPro.jar" "aplicacao_pronta\SistemaLoja.jar" > nu
 rd /s /q staging
 
 echo [4/5] Compilando executavel nativo Windows (SystemPro.exe e SistemaLoja.exe)...
-"%CSC_EXE%" /nologo /target:winexe /out:"aplicacao_pronta\SystemPro.exe" Launcher.cs
+set "ICON_PARAM="
+if exist "icone.ico" set "ICON_PARAM=/win32icon:icone.ico"
+"%CSC_EXE%" /nologo /target:winexe %ICON_PARAM% /out:"aplicacao_pronta\SystemPro.exe" Launcher.cs
 if %ERRORLEVEL% neq 0 goto :csc_failed
 copy /Y "aplicacao_pronta\SystemPro.exe" "aplicacao_pronta\SistemaLoja.exe" > nul
+if exist "icone.ico" copy /Y "icone.ico" "aplicacao_pronta\icone.ico" > nul
 
 if not exist "aplicacao_pronta\jre\bin\javaw.exe" (
     if defined JAVA_HOME (

@@ -148,4 +148,66 @@ public class EquipamentoDAO {
         }
         return lista;
     }
+
+    public int contarOSVinculadas(int equipId) {
+        String sql = "SELECT COUNT(*) FROM ordem_servico WHERE equipamento_id = ?";
+        try (Connection conn = ConnectionFactory.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, equipId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[ERRO DB] Falha ao contar OS vinculadas ao equipamento #" + equipId + ": " + e.getMessage());
+        }
+        return 0;
+    }
+
+    public static void excluirEquipamentoComDependencias(Connection conn, int equipId) throws SQLException {
+        // 1. Obter IDs de todas as OSs vinculadas a este equipamento
+        List<Integer> osIds = new ArrayList<>();
+        try (PreparedStatement stmt = conn.prepareStatement("SELECT id FROM ordem_servico WHERE equipamento_id = ?")) {
+            stmt.setInt(1, equipId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    osIds.add(rs.getInt("id"));
+                }
+            }
+        }
+
+        // 2. Excluir dependências de cada OS e a própria OS
+        for (int osId : osIds) {
+            OrdemServicoDAO.excluirOSComDependencias(conn, osId);
+        }
+
+        // 3. Excluir o equipamento
+        try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM equipamento WHERE id = ?")) {
+            stmt.setInt(1, equipId);
+            stmt.executeUpdate();
+        }
+    }
+
+    public boolean excluir(int equipId) {
+        try (Connection conn = ConnectionFactory.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                excluirEquipamentoComDependencias(conn, equipId);
+                conn.commit();
+                System.out.println("[DB] Equipamento #" + equipId + " excluído com sucesso.");
+                try {
+                    com.loja.service.AutoBackupService.getInstance().notificarAcaoCritica("Exclusão Equipamento #" + equipId);
+                } catch (Exception ignored) {}
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            System.err.println("[ERRO DB] Falha ao excluir equipamento #" + equipId + ": " + e.getMessage());
+            return false;
+        }
+    }
 }
+

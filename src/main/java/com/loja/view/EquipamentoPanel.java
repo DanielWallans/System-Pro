@@ -2,6 +2,8 @@ package com.loja.view;
 
 import com.loja.model.Cliente;
 import com.loja.model.Equipamento;
+import com.loja.model.SessaoUsuario;
+import com.loja.model.Usuario;
 import com.loja.repository.ClienteDAO;
 import com.loja.repository.EquipamentoDAO;
 import com.loja.view.dialogs.EquipamentoDialog;
@@ -25,6 +27,7 @@ public class EquipamentoPanel extends JPanel {
     private DefaultTableModel tableModel;
     private JComboBox<EquipamentoDialog.ClienteComboItem> cbFiltroCliente;
     private JLabel lblContador;
+    private JButton btnExcluir;
 
     public EquipamentoPanel(Frame owner, EquipamentoDAO equipDAO, ClienteDAO clienteDAO) {
         this.owner = owner;
@@ -67,6 +70,8 @@ public class EquipamentoPanel extends JPanel {
 
         JButton btnNovo = UIComponents.criarBotaoPrimario("+ Novo Equipamento", this::abrirNovoEquipamento);
         JButton btnEditar = UIComponents.criarBotaoSecundario("Editar", this::editarEquipamentoSelecionado);
+        this.btnExcluir = UIComponents.criarBotaoSecundario("Excluir", this::excluirEquipamentoSelecionado);
+        this.btnExcluir.setToolTipText("Excluir equipamento permanentemente (Apenas Administrador)");
         JButton btnAtualizar = UIComponents.criarBotaoSecundario("Atualizar [F5]", () -> {
             recarregarFiltroClientes();
             recarregarTabela();
@@ -80,6 +85,7 @@ public class EquipamentoPanel extends JPanel {
         pnlAcoes.add(cbFiltroCliente);
         pnlAcoes.add(btnNovo);
         pnlAcoes.add(btnEditar);
+        pnlAcoes.add(this.btnExcluir);
         pnlAcoes.add(btnAtualizar);
 
         topPanel.add(pnlTitulo, BorderLayout.WEST);
@@ -143,6 +149,7 @@ public class EquipamentoPanel extends JPanel {
     }
 
     public void recarregarTabela() {
+        aplicarPermissoesPerfil();
         UIComponents.formatarTabelaModerna(tabela, -1);
         tableModel.setRowCount(0);
         EquipamentoDialog.ClienteComboItem item = (EquipamentoDialog.ClienteComboItem) cbFiltroCliente
@@ -211,6 +218,61 @@ public class EquipamentoPanel extends JPanel {
             dialog.setVisible(true);
             if (dialog.isSalvo()) {
                 recarregarTabela();
+            }
+        }
+    }
+
+    public void aplicarPermissoesPerfil() {
+        Usuario user = SessaoUsuario.getInstancia().getUsuarioLogado();
+        boolean isAdmin = user != null && user.isAdmin();
+        if (btnExcluir != null) {
+            btnExcluir.setVisible(isAdmin);
+        }
+    }
+
+    private void excluirEquipamentoSelecionado() {
+        Usuario user = SessaoUsuario.getInstancia().getUsuarioLogado();
+        if (user == null || !user.isAdmin()) {
+            JOptionPane.showMessageDialog(this,
+                    "Acesso Restrito!\nApenas usuários com perfil Administrador possuem permissão para excluir Equipamentos.",
+                    "Acesso Negado", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int row = tabela.getSelectedRow();
+        if (row < 0) {
+            JOptionPane.showMessageDialog(this, "Selecione um equipamento na tabela para excluir!", "Aviso",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int id = (int) tableModel.getValueAt(row, 0);
+        String descEquip = (String) tableModel.getValueAt(row, 3);
+        String nomeCliente = (String) tableModel.getValueAt(row, 1);
+
+        int totalOS = equipDAO.contarOSVinculadas(id);
+        String msg;
+        if (totalOS > 0) {
+            msg = "ATENÇÃO: O equipamento #" + id + " (" + descEquip + ") possui " + totalOS + " Ordem(ns) de Serviço vinculada(s)!\n\n" +
+                  "Ao excluir este equipamento, todas as OS vinculadas e seus históricos/fotos serão excluídos permanentemente.\n\n" +
+                  "Deseja realmente excluir este equipamento e todas as suas OS vinculadas?";
+        } else {
+            msg = "Deseja realmente excluir permanentemente o equipamento #" + id + " (" + descEquip + ") do cliente " + nomeCliente + "?\n\n" +
+                  "Esta ação não poderá ser desfeita!";
+        }
+
+        int opt = JOptionPane.showConfirmDialog(this, msg, "Confirmar Exclusão de Equipamento",
+                JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+        if (opt == JOptionPane.YES_OPTION) {
+            boolean ok = equipDAO.excluir(id);
+            if (ok) {
+                JOptionPane.showMessageDialog(this, "Equipamento #" + id + " excluído com sucesso!", "Sucesso",
+                        JOptionPane.INFORMATION_MESSAGE);
+                recarregarFiltroClientes();
+                recarregarTabela();
+            } else {
+                JOptionPane.showMessageDialog(this, "Erro ao excluir equipamento do banco de dados.", "Erro",
+                        JOptionPane.ERROR_MESSAGE);
             }
         }
     }
