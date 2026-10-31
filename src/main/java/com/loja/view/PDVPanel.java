@@ -566,11 +566,12 @@ public class PDVPanel extends JPanel {
         lblNome.setFont(UITheme.FONT_BODY_BOLD);
         lblNome.setForeground(t.getTextPrimary());
 
-        // Tooltip rica com dados da peça
-        card.setToolTipText(String.format("<html><b>%s</b><br>ID: #%d | Cód. Barras: %s<br>Estoque: %d un | Preço: R$ %.2f<br><i>(Clique para adicionar ao carrinho)</i></html>",
+        // Tooltip rica com dados da peça e localização física
+        String locFisica = (p.getLocalizacao() != null && !p.getLocalizacao().isEmpty()) ? p.getLocalizacao() : "Não informada";
+        card.setToolTipText(String.format("<html><b>%s</b><br>ID: #%d | Cód. Barras: %s<br>Estoque: %d un (Mín: %d un)<br><b>Localização:</b> %s<br>Preço: R$ %.2f<br><i>(Clique para adicionar ao carrinho)</i></html>",
                 p.getNome(), p.getId(), 
                 (p.getCodigoBarras() != null && !p.getCodigoBarras().isEmpty() ? p.getCodigoBarras() : "Sem EAN"),
-                p.getEstoque(), p.getPreco()));
+                p.getEstoque(), p.getEstoqueMinimo(), locFisica, p.getPreco()));
 
         // Linha inferior: Preço em destaque e Badge de Estoque
         JPanel pnlInferior = new JPanel(new BorderLayout());
@@ -695,15 +696,70 @@ public class PDVPanel extends JPanel {
     }
 
     public void adicionarAoCarrinho(Produto p, int quantidade) {
+        if (p == null) return;
+
+        // Atualiza os dados de estoque em tempo real direto do banco
+        Produto prodAtual = p;
+        if (p.getId() > 0) {
+            try {
+                Produto doBanco = produtoDAO.buscarPorId(p.getId());
+                if (doBanco != null) {
+                    prodAtual = doBanco;
+                }
+            } catch (Exception ignored) {}
+        }
+
+        int qtdJaNoCarrinho = 0;
         for (ItemVenda item : carrinho) {
-            if (item.getProdutoId() > 0 && item.getProdutoId() == p.getId()) {
+            if (item.getProdutoId() > 0 && item.getProdutoId() == prodAtual.getId()) {
+                qtdJaNoCarrinho += item.getQuantidade();
+            }
+        }
+        int totalAposAdicionar = qtdJaNoCarrinho + quantidade;
+
+        // 1. Alerta crítico: Produto com estoque zerado ou negativo
+        if (prodAtual.getEstoque() <= 0) {
+            Toolkit.getDefaultToolkit().beep();
+            int opt = JOptionPane.showConfirmDialog(this,
+                    "⚠️ ATENÇÃO: PRODUTO COM ESTOQUE ZERADO!\n\n"
+                    + "Produto: " + prodAtual.getNome() + " (ID #" + prodAtual.getId() + ")\n"
+                    + "Estoque no Sistema: 0 unidades\n\n"
+                    + "Este item consta como ZERADO no estoque de peças.\n"
+                    + "Deseja realmente adicionar ao carrinho e permitir a venda de balcão?\n"
+                    + "(O saldo em estoque ficará negativo até a entrada da nota fiscal/reposição)",
+                    "Alerta de Estoque Zerado", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+            if (opt != JOptionPane.YES_OPTION) {
+                focarEntrada();
+                return;
+            }
+        }
+        // 2. Alerta: Quantidade solicitada maior do que o saldo disponível
+        else if (totalAposAdicionar > prodAtual.getEstoque()) {
+            Toolkit.getDefaultToolkit().beep();
+            int opt = JOptionPane.showConfirmDialog(this,
+                    "⚠️ QUANTIDADE SUPERIOR AO ESTOQUE DISPONÍVEL!\n\n"
+                    + "Produto: " + prodAtual.getNome() + " (ID #" + prodAtual.getId() + ")\n"
+                    + "Estoque Atual: " + prodAtual.getEstoque() + " un\n"
+                    + "Quantidade no Pedido: " + totalAposAdicionar + " un (" + qtdJaNoCarrinho + " já no carrinho + " + quantidade + " nova)\n\n"
+                    + "Deseja continuar com a venda mesmo ultrapassando o estoque em loja?",
+                    "Estoque Insuficiente", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+            if (opt != JOptionPane.YES_OPTION) {
+                focarEntrada();
+                return;
+            }
+        }
+
+        for (ItemVenda item : carrinho) {
+            if (item.getProdutoId() > 0 && item.getProdutoId() == prodAtual.getId()) {
                 item.setQuantidade(item.getQuantidade() + quantidade);
                 atualizarTabelaCarrinho();
                 return;
             }
         }
 
-        ItemVenda novoItem = new ItemVenda(p.getId(), p.getNome(), quantidade, p.getPreco());
+        ItemVenda novoItem = new ItemVenda(prodAtual.getId(), prodAtual.getNome(), quantidade, prodAtual.getPreco());
         carrinho.add(novoItem);
         atualizarTabelaCarrinho();
     }
@@ -791,14 +847,30 @@ public class PDVPanel extends JPanel {
             cb.addItem(p);
         }
 
+        JLabel lblInfo = new JLabel();
+        lblInfo.setFont(UITheme.FONT_CAPTION);
+        lblInfo.setForeground(UITheme.tokens().getTextSecondary());
+
+        Runnable atualizarInfo = () -> {
+            Produto p = (Produto) cb.getSelectedItem();
+            if (p != null) {
+                String loc = (p.getLocalizacao() != null && !p.getLocalizacao().isEmpty()) ? p.getLocalizacao() : "Não informada";
+                lblInfo.setText("<html><b>Saldo:</b> " + p.getEstoque() + " un | <b>Local/Gaveta:</b> " + loc + " | <b>Preço:</b> R$ " + String.format("%.2f", p.getPreco()) + "</html>");
+            }
+        };
+        cb.addActionListener(e -> atualizarInfo.run());
+        atualizarInfo.run();
+
         JSpinner sp = new JSpinner(new SpinnerNumberModel(1, 1, 999, 1));
-        JPanel pnl = new JPanel(new GridLayout(2, 2, 8, 8));
-        pnl.add(new JLabel("Selecione o Produto/Peça:"));
+        JPanel pnl = new JPanel(new GridLayout(3, 2, 8, 8));
+        pnl.add(new JLabel("Selecione a Peça:"));
         pnl.add(cb);
+        pnl.add(new JLabel("Localização & Saldo:"));
+        pnl.add(lblInfo);
         pnl.add(new JLabel("Quantidade:"));
         pnl.add(sp);
 
-        int res = JOptionPane.showConfirmDialog(this, pnl, "Pesquisar Produto no Estoque", JOptionPane.OK_CANCEL_OPTION,
+        int res = JOptionPane.showConfirmDialog(this, pnl, "Pesquisar Produto no Estoque [F6]", JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE);
         if (res == JOptionPane.OK_OPTION) {
             Produto selecionado = (Produto) cb.getSelectedItem();
@@ -912,6 +984,9 @@ public class PDVPanel extends JPanel {
             venda.setSubtotal(subtotal);
             venda.setDesconto(desconto);
             venda.setValorTotal(totalPagar);
+            venda.setClienteId(dialog.getClienteId());
+            venda.setClienteNome(dialog.getClienteNome());
+            venda.setClienteCpf(dialog.getClienteCpf());
             venda.setItens(new ArrayList<>(carrinho));
             venda.setPagamentos(dialog.getPagamentos());
             venda.recalcularTotais();

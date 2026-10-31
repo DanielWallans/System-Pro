@@ -7,6 +7,8 @@ public class Produto {
     private double precoCusto;
     private double preco;
     private int estoque;
+    private int estoqueMinimo = 2;       // Limite mínimo para alerta e reposição
+    private String localizacao = "";     // Localização física (ex: Gaveteiro B - Gaveta 04, Prateleira 2)
 
     // Campos Fiscais Tributários (SEFAZ / NF-e / NFC-e)
     private String ncm;       // Nomenclatura Comum do Mercosul (8 dígitos)
@@ -17,14 +19,20 @@ public class Produto {
     private String unidade;   // UN, PC, CX, PAR, KG, MT
 
     public Produto(int id, String nome, double preco, int estoque) {
-        this(id, "", nome, 0.0, preco, estoque, "", "", "5102", 0, "102", "UN");
+        this(id, "", nome, 0.0, preco, estoque, 2, "", "", "", "5102", 0, "102", "UN");
     }
 
     public Produto(int id, String codigoBarras, String nome, double preco, int estoque) {
-        this(id, codigoBarras, nome, 0.0, preco, estoque, "", "", "5102", 0, "102", "UN");
+        this(id, codigoBarras, nome, 0.0, preco, estoque, 2, "", "", "", "5102", 0, "102", "UN");
     }
 
     public Produto(int id, String codigoBarras, String nome, double precoCusto, double preco, int estoque,
+                   String ncm, String cest, String cfop, int origem, String csosnCst, String unidade) {
+        this(id, codigoBarras, nome, precoCusto, preco, estoque, 2, "", ncm, cest, cfop, origem, csosnCst, unidade);
+    }
+
+    public Produto(int id, String codigoBarras, String nome, double precoCusto, double preco, int estoque,
+                   int estoqueMinimo, String localizacao,
                    String ncm, String cest, String cfop, int origem, String csosnCst, String unidade) {
         this.id = id;
         this.codigoBarras = codigoBarras != null ? codigoBarras : "";
@@ -32,6 +40,8 @@ public class Produto {
         this.precoCusto = precoCusto;
         this.preco = preco;
         this.estoque = estoque;
+        this.estoqueMinimo = estoqueMinimo >= 0 ? estoqueMinimo : 2;
+        this.localizacao = localizacao != null ? localizacao : "";
         this.ncm = ncm != null ? ncm : "";
         this.cest = cest != null ? cest : "";
         this.cfop = (cfop != null && !cfop.trim().isEmpty()) ? cfop.trim() : "5102";
@@ -76,6 +86,25 @@ public class Produto {
 
     public int getEstoque() { return estoque; }
     public void setEstoque(int estoque) { this.estoque = estoque; }
+
+    public int getEstoqueMinimo() { return estoqueMinimo; }
+    public void setEstoqueMinimo(int estoqueMinimo) { this.estoqueMinimo = estoqueMinimo >= 0 ? estoqueMinimo : 0; }
+
+    public String getLocalizacao() { return localizacao; }
+    public void setLocalizacao(String localizacao) { this.localizacao = localizacao != null ? localizacao : ""; }
+
+    public boolean isEstoqueZerado() {
+        return this.estoque <= 0;
+    }
+
+    public boolean isEstoqueCritico() {
+        return this.estoque <= this.estoqueMinimo;
+    }
+
+    public int getQtdSugeridaCompra() {
+        int metaIdeal = Math.max(this.estoqueMinimo * 2, 2);
+        return Math.max(metaIdeal - this.estoque, 0);
+    }
 
     public String getNcm() { return ncm; }
     public void setNcm(String ncm) { this.ncm = ncm; }

@@ -3,9 +3,13 @@ package com.loja.view;
 import com.loja.model.Produto;
 import com.loja.model.SessaoUsuario;
 import com.loja.model.Usuario;
+import com.loja.repository.EstoqueMovimentoDAO;
 import com.loja.repository.ProdutoDAO;
 import com.loja.view.dialogs.ConfigFiscalDialog;
+import com.loja.view.dialogs.HistoricoEstoqueDialog;
+import com.loja.view.dialogs.MovimentarEstoqueDialog;
 import com.loja.view.dialogs.ProdutoDialog;
+import com.loja.view.dialogs.ReposicaoEstoqueDialog;
 import com.loja.view.theme.UIComponents;
 import com.loja.view.theme.UITheme;
 
@@ -18,6 +22,7 @@ import java.util.List;
 
 public class EstoquePanel extends JPanel {
     private final ProdutoDAO produtoDAO;
+    private final EstoqueMovimentoDAO movimentoDAO;
     private final Frame owner;
 
     private JTable tabela;
@@ -29,6 +34,7 @@ public class EstoquePanel extends JPanel {
     public EstoquePanel(Frame owner, ProdutoDAO produtoDAO) {
         this.owner = owner;
         this.produtoDAO = produtoDAO;
+        this.movimentoDAO = new EstoqueMovimentoDAO();
 
         setLayout(new BorderLayout(UITheme.SPACE_16, UITheme.SPACE_16));
         setBorder(BorderFactory.createEmptyBorder(UITheme.SPACE_16, UITheme.SPACE_20, UITheme.SPACE_16,
@@ -51,10 +57,22 @@ public class EstoquePanel extends JPanel {
 
         JPanel pnlAcoes = new JPanel(new FlowLayout(FlowLayout.RIGHT, UITheme.SPACE_8, 0));
         pnlAcoes.setOpaque(false);
-        txtBusca = new JTextField(18);
-        txtBusca.putClientProperty("JTextField.placeholderText", "Filtrar por nome, ID ou NCM...");
+        txtBusca = new JTextField(15);
+        txtBusca.putClientProperty("JTextField.placeholderText", "Filtrar por nome, ID, NCM ou gaveta...");
 
         JButton btnNovo = UIComponents.criarBotaoPrimario("+ Cadastrar Peça");
+        JButton btnEntrada = UIComponents.criarBotaoSecundario("📥 + Entrada");
+        btnEntrada.setToolTipText("Registrar entrada de mercadoria / reposição de fornecedor com custo");
+
+        JButton btnSaida = UIComponents.criarBotaoSecundario("📤 - Saída");
+        btnSaida.setToolTipText("Registrar saída avulsa (uso em bancada, avaria, quebra, RMA)");
+
+        JButton btnReposicao = UIComponents.criarBotaoSecundario("🛒 Compras / Falta");
+        btnReposicao.setToolTipText("Consultar sugestão de compras para produtos zerados ou abaixo do estoque mínimo");
+
+        JButton btnHistorico = UIComponents.criarBotaoSecundario("📜 Extrato Kardex");
+        btnHistorico.setToolTipText("Consultar extrato e histórico completo de movimentações de estoque");
+
         JButton btnEditar = UIComponents.criarBotaoSecundario("Editar");
         this.btnExcluir = UIComponents.criarBotaoSecundario("Excluir");
         this.btnExcluir.setToolTipText("Excluir item permanentemente (Apenas Administrador)");
@@ -64,6 +82,10 @@ public class EstoquePanel extends JPanel {
 
         txtBusca.addActionListener(e -> filtrarPecas());
         btnNovo.addActionListener(e -> abrirNovoProduto());
+        btnEntrada.addActionListener(e -> abrirEntradaEstoque());
+        btnSaida.addActionListener(e -> abrirSaidaEstoque());
+        btnReposicao.addActionListener(e -> abrirReposicaoEstoque());
+        btnHistorico.addActionListener(e -> abrirHistoricoEstoque());
         btnEditar.addActionListener(e -> editarProdutoSelecionado());
         this.btnExcluir.addActionListener(e -> excluirProdutoSelecionado());
         btnAtualizar.addActionListener(e -> {
@@ -74,6 +96,10 @@ public class EstoquePanel extends JPanel {
 
         pnlAcoes.add(txtBusca);
         pnlAcoes.add(btnNovo);
+        pnlAcoes.add(btnEntrada);
+        pnlAcoes.add(btnSaida);
+        pnlAcoes.add(btnReposicao);
+        pnlAcoes.add(btnHistorico);
         pnlAcoes.add(btnEditar);
         pnlAcoes.add(this.btnExcluir);
         pnlAcoes.add(btnConfigFiscal);
@@ -83,9 +109,9 @@ public class EstoquePanel extends JPanel {
         topPanel.add(pnlAcoes, BorderLayout.EAST);
         add(topPanel, BorderLayout.NORTH);
 
-        // 2. Tabela de Peças e Produtos com Colunas Comerciais e Fiscais
-        String[] colunas = { "Código", "Componente / Descrição", "Custo (R$)", "Venda (R$)", "Margem",
-                "Estoque", "NCM", "Status" };
+        // 2. Tabela de Peças e Produtos com Colunas Comerciais, Logísticas e Fiscais
+        String[] colunas = { "Código", "Componente / Descrição", "Localização / Gaveta", "Custo (R$)", "Venda (R$)", "Margem",
+                "Estoque", "Mínimo", "Status" };
         tableModel = new DefaultTableModel(colunas, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -96,21 +122,60 @@ public class EstoquePanel extends JPanel {
         tabela = new JTable(tableModel);
         tabela.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         tabela.getColumnModel().getColumn(0).setPreferredWidth(55);
-        tabela.getColumnModel().getColumn(1).setPreferredWidth(260);
-        tabela.getColumnModel().getColumn(2).setPreferredWidth(95);
-        tabela.getColumnModel().getColumn(3).setPreferredWidth(95);
+        tabela.getColumnModel().getColumn(1).setPreferredWidth(240);
+        tabela.getColumnModel().getColumn(2).setPreferredWidth(130);
+        tabela.getColumnModel().getColumn(3).setPreferredWidth(85);
         tabela.getColumnModel().getColumn(4).setPreferredWidth(85);
         tabela.getColumnModel().getColumn(5).setPreferredWidth(75);
-        tabela.getColumnModel().getColumn(6).setPreferredWidth(85);
-        tabela.getColumnModel().getColumn(7).setPreferredWidth(115);
+        tabela.getColumnModel().getColumn(6).setPreferredWidth(75);
+        tabela.getColumnModel().getColumn(7).setPreferredWidth(70);
+        tabela.getColumnModel().getColumn(8).setPreferredWidth(110);
 
-        UIComponents.formatarTabelaModerna(tabela, 7);
+        UIComponents.formatarTabelaModerna(tabela, 8);
+
+        // Menu de Contexto (botão direito) na tabela
+        JPopupMenu popupMenu = new JPopupMenu();
+        JMenuItem itemEntrada = new JMenuItem("📥 Entrada de Estoque / Reposição...");
+        JMenuItem itemSaida = new JMenuItem("📤 Saída Avulsa (Bancada/Avaria)...");
+        JMenuItem itemReposicao = new JMenuItem("🛒 Sugestão de Compras / Falta...");
+        JMenuItem itemHistorico = new JMenuItem("📜 Ver Extrato do Item (Kardex)...");
+        JMenuItem itemEditar = new JMenuItem("✏️ Editar Cadastro...");
+        JMenuItem itemExcluir = new JMenuItem("🗑️ Excluir Item...");
+
+        itemEntrada.addActionListener(e -> abrirEntradaEstoque());
+        itemSaida.addActionListener(e -> abrirSaidaEstoque());
+        itemReposicao.addActionListener(e -> abrirReposicaoEstoque());
+        itemHistorico.addActionListener(e -> abrirHistoricoEstoque());
+        itemEditar.addActionListener(e -> editarProdutoSelecionado());
+        itemExcluir.addActionListener(e -> excluirProdutoSelecionado());
+
+        popupMenu.add(itemEntrada);
+        popupMenu.add(itemSaida);
+        popupMenu.add(itemReposicao);
+        popupMenu.add(itemHistorico);
+        popupMenu.addSeparator();
+        popupMenu.add(itemEditar);
+        popupMenu.add(itemExcluir);
+
+        tabela.setComponentPopupMenu(popupMenu);
 
         tabela.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                selecionarLinhaSobCursor(e);
+            }
+
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
                     editarProdutoSelecionado();
+                }
+            }
+
+            private void selecionarLinhaSobCursor(MouseEvent e) {
+                int row = tabela.rowAtPoint(e.getPoint());
+                if (row >= 0 && !tabela.isRowSelected(row)) {
+                    tabela.setRowSelectionInterval(row, row);
                 }
             }
         });
@@ -135,14 +200,22 @@ public class EstoquePanel extends JPanel {
         for (Produto p : lista) {
             adicionarLinhaNaTabela(p);
         }
-        lblContador.setText("Total de itens cadastrados no catálogo: " + lista.size());
+
+        int criticos = produtoDAO.contarProdutosCriticosOuEmFalta();
+        if (criticos > 0) {
+            lblContador.setText("Total no catálogo: " + lista.size() + " itens | ⚠️ " + criticos + " item(ns) com estoque zerado ou em falta!");
+            lblContador.setForeground(UITheme.tokens().getWarning());
+        } else {
+            lblContador.setText("Total de itens cadastrados no catálogo: " + lista.size() + " (Estoque saudável)");
+            lblContador.setForeground(UITheme.tokens().getTextSecondary());
+        }
     }
 
     private void adicionarLinhaNaTabela(Produto p) {
         String statusEstoque;
-        if (p.getEstoque() <= 0) {
+        if (p.isEstoqueZerado()) {
             statusEstoque = "ZERADO";
-        } else if (p.getEstoque() <= 3) {
+        } else if (p.isEstoqueCritico()) {
             statusEstoque = "ESTOQUE BAIXO";
         } else {
             statusEstoque = "DISPONÍVEL";
@@ -151,16 +224,17 @@ public class EstoquePanel extends JPanel {
         String strCusto = p.getPrecoCusto() > 0 ? String.format("R$ %.2f", p.getPrecoCusto()) : "-";
         String strVenda = String.format("R$ %.2f", p.getPreco());
         String strMargem = p.getPrecoCusto() > 0 ? String.format("%.1f%%", p.getMargemLucroPercentual()) : "-";
-        String strNcm = (p.getNcm() != null && !p.getNcm().isEmpty()) ? p.getNcm() : "Pendente";
+        String strLoc = (p.getLocalizacao() != null && !p.getLocalizacao().isEmpty()) ? p.getLocalizacao() : "-";
 
         tableModel.addRow(new Object[] {
                 p.getId(),
                 p.getNome(),
+                strLoc,
                 strCusto,
                 strVenda,
                 strMargem,
                 p.getEstoque() + " " + (p.getUnidade() != null ? p.getUnidade() : "UN"),
-                strNcm,
+                p.getEstoqueMinimo() + " " + (p.getUnidade() != null ? p.getUnidade() : "UN"),
                 statusEstoque
         });
     }
@@ -179,8 +253,9 @@ public class EstoquePanel extends JPanel {
             boolean matchId = String.valueOf(p.getId()).equals(termo);
             boolean matchNcm = p.getNcm() != null && p.getNcm().contains(termo);
             boolean matchCodBarras = p.getCodigoBarras() != null && p.getCodigoBarras().contains(termo);
+            boolean matchLoc = p.getLocalizacao() != null && p.getLocalizacao().toLowerCase().contains(termo);
 
-            if (matchNome || matchId || matchNcm || matchCodBarras) {
+            if (matchNome || matchId || matchNcm || matchCodBarras || matchLoc) {
                 adicionarLinhaNaTabela(p);
                 cont++;
             }
@@ -199,6 +274,44 @@ public class EstoquePanel extends JPanel {
     private void abrirConfigFiscal() {
         ConfigFiscalDialog dialog = new ConfigFiscalDialog(owner);
         dialog.setVisible(true);
+    }
+
+    private Produto obterProdutoSelecionado() {
+        int row = tabela.getSelectedRow();
+        if (row < 0) return null;
+        int id = (int) tableModel.getValueAt(row, 0);
+        return produtoDAO.buscarPorId(id);
+    }
+
+    private void abrirEntradaEstoque() {
+        Produto p = obterProdutoSelecionado();
+        MovimentarEstoqueDialog dialog = new MovimentarEstoqueDialog(owner, produtoDAO, movimentoDAO, p, true);
+        dialog.setVisible(true);
+        if (dialog.isConfirmadoComSucesso()) {
+            recarregarTabela();
+        }
+    }
+
+    private void abrirSaidaEstoque() {
+        Produto p = obterProdutoSelecionado();
+        MovimentarEstoqueDialog dialog = new MovimentarEstoqueDialog(owner, produtoDAO, movimentoDAO, p, false);
+        dialog.setVisible(true);
+        if (dialog.isConfirmadoComSucesso()) {
+            recarregarTabela();
+        }
+    }
+
+    private void abrirHistoricoEstoque() {
+        Produto p = obterProdutoSelecionado();
+        HistoricoEstoqueDialog dialog = new HistoricoEstoqueDialog(owner, produtoDAO, movimentoDAO, p);
+        dialog.setVisible(true);
+        recarregarTabela();
+    }
+
+    private void abrirReposicaoEstoque() {
+        ReposicaoEstoqueDialog dialog = new ReposicaoEstoqueDialog(owner, produtoDAO, movimentoDAO);
+        dialog.setVisible(true);
+        recarregarTabela();
     }
 
     private void editarProdutoSelecionado() {

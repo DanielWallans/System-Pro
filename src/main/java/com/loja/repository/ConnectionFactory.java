@@ -328,6 +328,8 @@ public class ConnectionFactory {
                     "preco_custo DOUBLE DEFAULT 0.0, " +
                     "preco DOUBLE, " +
                     "estoque INT, " +
+                    "estoque_minimo INT DEFAULT 2, " +
+                    "localizacao VARCHAR(100) DEFAULT '', " +
                     "ncm VARCHAR(10) DEFAULT '', " +
                     "cest VARCHAR(10) DEFAULT '', " +
                     "cfop VARCHAR(10) DEFAULT '5102', " +
@@ -371,6 +373,8 @@ public class ConnectionFactory {
                     "valor_total DOUBLE DEFAULT 0.0, " +
                     "checklist_entrada TEXT, " +
                     "observacoes_finais TEXT, " +
+                    "tipo_atendimento VARCHAR(50) DEFAULT 'BALCAO', " +
+                    "endereco_externo VARCHAR(255) NULL, " +
                     "data_entrada TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                     "data_saida TIMESTAMP NULL, " +
                     "FOREIGN KEY (cliente_id) REFERENCES cliente(id), " +
@@ -434,6 +438,10 @@ public class ConnectionFactory {
                     "valor_total DOUBLE NOT NULL DEFAULT 0.0, " +
                     "valor_liquido DOUBLE NOT NULL DEFAULT 0.0, " +
                     "observacoes TEXT, " +
+                    "sessao_id INT NULL, " +
+                    "cliente_id INT NULL, " +
+                    "cliente_nome VARCHAR(150) NULL, " +
+                    "cliente_cpf VARCHAR(20) NULL, " +
                     "data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
 
             // 13. Tabela de Itens de Venda PDV
@@ -624,6 +632,62 @@ public class ConnectionFactory {
                     "FOREIGN KEY (venda_id) REFERENCES venda_pdv(id) ON DELETE SET NULL, " +
                     "FOREIGN KEY (os_id) REFERENCES ordem_servico(id) ON DELETE SET NULL)");
 
+            // 20. Tabela de Movimentações Logísticas de Estoque (Entradas, Saídas, Bancada, Vendas, Ajustes)
+            stmt.execute("CREATE TABLE IF NOT EXISTS estoque_movimento (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "produto_id INT NOT NULL, " +
+                    "nome_produto VARCHAR(200) NOT NULL, " +
+                    "tipo VARCHAR(20) NOT NULL, " +
+                    "quantidade INT NOT NULL, " +
+                    "saldo_anterior INT NOT NULL, " +
+                    "saldo_posterior INT NOT NULL, " +
+                    "motivo VARCHAR(100) NOT NULL, " +
+                    "documento_ref VARCHAR(100) NULL, " +
+                    "custo_unitario DOUBLE NULL, " +
+                    "usuario VARCHAR(100) NULL, " +
+                    "observacoes TEXT NULL, " +
+                    "data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+
+            // 21. Tabela de Contas a Pagar e Despesas Financeiras
+            stmt.execute("CREATE TABLE IF NOT EXISTS conta_pagar (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "descricao VARCHAR(200) NOT NULL, " +
+                    "categoria VARCHAR(50) NOT NULL DEFAULT 'Geral', " +
+                    "valor DOUBLE NOT NULL, " +
+                    "data_vencimento DATE NOT NULL, " +
+                    "data_pagamento DATE NULL, " +
+                    "status VARCHAR(20) NOT NULL DEFAULT 'PENDENTE', " +
+                    "forma_pagamento VARCHAR(50) NULL, " +
+                    "observacoes TEXT NULL, " +
+                    "data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+
+            // 22. Tabela de Funcionários e Colaboradores
+            stmt.execute("CREATE TABLE IF NOT EXISTS funcionario (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "nome VARCHAR(150) NOT NULL, " +
+                    "cargo VARCHAR(100) NULL, " +
+                    "telefone VARCHAR(30) NULL, " +
+                    "salario_base DOUBLE DEFAULT 0.0, " +
+                    "percentual_comissao DOUBLE DEFAULT 0.0, " +
+                    "ativo BOOLEAN DEFAULT TRUE, " +
+                    "data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+
+            // 23. Tabela de Despesas com Pessoal (Salários, Vales, Comissões)
+            stmt.execute("CREATE TABLE IF NOT EXISTS funcionario_despesa (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
+                    "funcionario_id INT NULL, " +
+                    "funcionario_nome VARCHAR(150) NOT NULL, " +
+                    "cargo VARCHAR(100) NULL, " +
+                    "tipo VARCHAR(50) NOT NULL, " +
+                    "valor DOUBLE NOT NULL, " +
+                    "data_referencia DATE NOT NULL, " +
+                    "data_pagamento DATE NULL, " +
+                    "status VARCHAR(20) NOT NULL DEFAULT 'PENDENTE', " +
+                    "forma_pagamento VARCHAR(50) NULL, " +
+                    "observacoes TEXT NULL, " +
+                    "data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                    "FOREIGN KEY (funcionario_id) REFERENCES funcionario(id) ON DELETE SET NULL)");
+
             // Migrações automáticas de colunas e tamanhos
             try {
                 stmt.execute("ALTER TABLE ordem_servico MODIFY COLUMN status VARCHAR(100)");
@@ -631,6 +695,8 @@ public class ConnectionFactory {
 
             adicionarColunaSeNaoExistir(conn, "produto", "codigo_barras", "VARCHAR(50)");
             adicionarColunaSeNaoExistir(conn, "produto", "preco_custo", "DOUBLE DEFAULT 0.0");
+            adicionarColunaSeNaoExistir(conn, "produto", "estoque_minimo", "INT DEFAULT 2");
+            adicionarColunaSeNaoExistir(conn, "produto", "localizacao", "VARCHAR(100) DEFAULT ''");
             adicionarColunaSeNaoExistir(conn, "produto", "ncm", "VARCHAR(10) DEFAULT ''");
             adicionarColunaSeNaoExistir(conn, "produto", "cest", "VARCHAR(10) DEFAULT ''");
             adicionarColunaSeNaoExistir(conn, "produto", "cfop", "VARCHAR(10) DEFAULT '5102'");
@@ -655,9 +721,14 @@ public class ConnectionFactory {
             adicionarColunaSeNaoExistir(conn, "equipamento", "acessorios", "TEXT");
             adicionarColunaSeNaoExistir(conn, "ordem_servico", "checklist_entrada", "TEXT");
             adicionarColunaSeNaoExistir(conn, "ordem_servico", "observacoes_finais", "TEXT");
+            adicionarColunaSeNaoExistir(conn, "ordem_servico", "tipo_atendimento", "VARCHAR(50) DEFAULT 'BALCAO'");
+            adicionarColunaSeNaoExistir(conn, "ordem_servico", "endereco_externo", "VARCHAR(255)");
             adicionarColunaSeNaoExistir(conn, "os_pecas", "nome", "VARCHAR(200)");
             adicionarColunaSeNaoExistir(conn, "caixa_movimento", "sessao_id", "INT NULL");
             adicionarColunaSeNaoExistir(conn, "venda_pdv", "sessao_id", "INT NULL");
+            adicionarColunaSeNaoExistir(conn, "venda_pdv", "cliente_id", "INT NULL");
+            adicionarColunaSeNaoExistir(conn, "venda_pdv", "cliente_nome", "VARCHAR(150) NULL");
+            adicionarColunaSeNaoExistir(conn, "venda_pdv", "cliente_cpf", "VARCHAR(20) NULL");
 
             // Migração de os_pecas se tiver chave primária antiga
             migrarTabelaOsPecasSeNecessario(conn);

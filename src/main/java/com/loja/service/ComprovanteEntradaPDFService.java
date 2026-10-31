@@ -57,7 +57,7 @@ public class ComprovanteEntradaPDFService {
         adicionarDivisor(document);
 
         // 2. Dados do Cliente e Dados do Equipamento
-        adicionarDadosClienteEquipamento(document, cliente, equip);
+        adicionarDadosClienteEquipamento(document, os, cliente, equip);
 
         document.add(new Paragraph(" ", FontFactory.getFont(FontFactory.HELVETICA, 4)));
 
@@ -71,8 +71,8 @@ public class ComprovanteEntradaPDFService {
 
         document.add(new Paragraph(" ", FontFactory.getFont(FontFactory.HELVETICA, 4)));
 
-        // 5. Termo de Declaração de Deixada e Custódia do Equipamento
-        adicionarTermoCustodia(document);
+        // 5. Termo de Declaração de Deixada ou Atendimento Externo
+        adicionarTermoCustodia(document, os);
 
         document.add(new Paragraph(" ", FontFactory.getFont(FontFactory.HELVETICA, 8)));
 
@@ -127,7 +127,8 @@ public class ComprovanteEntradaPDFService {
             cellEmpresa.addElement(pEnd);
         }
 
-        Paragraph pDocTipo = new Paragraph("Comprovante Oficial de Entrada e Termo de Custódia", FONT_SUBTITULO);
+        String docTipo = os.isExterno() ? "Comprovante Oficial de Atendimento Técnico Externo" : "Comprovante Oficial de Entrada e Termo de Custódia";
+        Paragraph pDocTipo = new Paragraph(docTipo, FONT_SUBTITULO);
         cellEmpresa.addElement(pDocTipo);
         headerTable.addCell(cellEmpresa);
 
@@ -138,17 +139,19 @@ public class ComprovanteEntradaPDFService {
         cellOSInfo.setBorderWidth(1f);
         cellOSInfo.setPadding(6);
 
-        Paragraph pTitulo = new Paragraph("COMPROVANTE DE ENTRADA", FONT_TITULO_DOC);
+        String titDoc = os.isExterno() ? "SERVIÇO EXTERNO" : "COMPROVANTE DE ENTRADA";
+        Paragraph pTitulo = new Paragraph(titDoc, FONT_TITULO_DOC);
         pTitulo.setAlignment(Element.ALIGN_RIGHT);
 
         Paragraph pOS = new Paragraph("ORDEM DE SERVIÇO Nº #" + os.getId(), FONT_SUBTITULO_DOC);
         pOS.setAlignment(Element.ALIGN_RIGHT);
 
         String dataEntradaStr = os.getDataEntrada() != null ? os.getDataEntrada().format(FORMATTER) : LocalDateTime.now().format(FORMATTER);
-        Paragraph pEntrada = new Paragraph("Entrada: " + dataEntradaStr, FONT_TEXTO_MUTED);
+        Paragraph pEntrada = new Paragraph("Abertura: " + dataEntradaStr, FONT_TEXTO_MUTED);
         pEntrada.setAlignment(Element.ALIGN_RIGHT);
 
-        Paragraph pStatus = new Paragraph("STATUS: AGUARDANDO ORÇAMENTO", FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9.5f, COLOR_TEXT_STATUS));
+        String statusStr = "STATUS: " + (os.getStatus() != null ? os.getStatus().toUpperCase() : "AGUARDANDO ORÇAMENTO");
+        Paragraph pStatus = new Paragraph(statusStr, FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9.5f, COLOR_TEXT_STATUS));
         pStatus.setAlignment(Element.ALIGN_RIGHT);
 
         cellOSInfo.addElement(pTitulo);
@@ -168,13 +171,14 @@ public class ComprovanteEntradaPDFService {
         document.add(new Paragraph(" ", FontFactory.getFont(FontFactory.HELVETICA, 4)));
     }
 
-    private static void adicionarDadosClienteEquipamento(Document document, Cliente cliente, Equipamento equip) throws DocumentException {
+    private static void adicionarDadosClienteEquipamento(Document document, OrdemServico os, Cliente cliente, Equipamento equip) throws DocumentException {
         PdfPTable table = new PdfPTable(2);
         table.setWidthPercentage(100);
         table.setWidths(new float[]{50, 50});
 
-        PdfPCell h1 = criarCelulaHeaderSecao("DADOS DO CLIENTE / PROPRIETÁRIO");
-        PdfPCell h2 = criarCelulaHeaderSecao("DADOS DO EQUIPAMENTO RECEBIDO");
+        PdfPCell h1 = criarCelulaHeaderSecao("DADOS DO CLIENTE / SOLICITANTE");
+        String titSecao2 = (os != null && os.isExterno()) ? "DADOS DO ATENDIMENTO EXTERNO / LOCAL" : "DADOS DO EQUIPAMENTO RECEBIDO";
+        PdfPCell h2 = criarCelulaHeaderSecao(titSecao2);
         table.addCell(h1);
         table.addCell(h2);
 
@@ -197,15 +201,19 @@ public class ComprovanteEntradaPDFService {
         }
         table.addCell(cCliente);
 
-        // Equipamento
+        // Equipamento / Atendimento
         PdfPCell cEquip = new PdfPCell();
         cEquip.setBorderColor(COLOR_BORDER_LIGHT);
         cEquip.setBorderWidth(0.8f);
         cEquip.setPadding(7);
 
+        if (os != null && os.isExterno() && !os.getEnderecoExterno().isEmpty()) {
+            cEquip.addElement(new Paragraph("Local da Visita / Atendimento: " + os.getEnderecoExterno(), FONT_TEXTO_BOLD));
+        }
+
         if (equip != null) {
             String aparelho = String.format("%s %s %s", valorOuVazio(equip.getTipo()), valorOuVazio(equip.getMarca()), valorOuVazio(equip.getModelo())).trim();
-            cEquip.addElement(new Paragraph("Aparelho: " + (aparelho.isEmpty() ? "Não especificado" : aparelho), FONT_TEXTO_BOLD));
+            cEquip.addElement(new Paragraph("Aparelho / Dispositivo: " + (aparelho.isEmpty() ? "Não especificado" : aparelho), FONT_TEXTO_BOLD));
             cEquip.addElement(new Paragraph("Nº de Série: " + valorOuTraco(equip.getNumeroSerie()) + " | Cor: " + valorOuTraco(equip.getCor()), FONT_TEXTO));
             if (equip.getSenhaAcesso() != null && !equip.getSenhaAcesso().trim().isEmpty()) {
                 cEquip.addElement(new Paragraph("Senha de Teste Informada: " + equip.getSenhaAcesso().trim(), FONT_TEXTO_BOLD));
@@ -295,34 +303,57 @@ public class ComprovanteEntradaPDFService {
         document.add(table);
     }
 
-    private static void adicionarTermoCustodia(Document document) throws DocumentException {
+    private static void adicionarTermoCustodia(Document document, OrdemServico os) throws DocumentException {
         PdfPTable table = new PdfPTable(1);
         table.setWidthPercentage(100);
 
-        PdfPCell hTermo = criarCelulaHeaderSecao("TERMO DE DECLARAÇÃO DE DEIXADA, CUSTÓDIA E AUTORIZAÇÃO DE ANÁLISE");
-        table.addCell(hTermo);
+        if (os != null && os.isExterno()) {
+            PdfPCell hTermo = criarCelulaHeaderSecao("DECLARAÇÃO DE EXECUÇÃO DE SERVIÇOS NO LOCAL E ACEITE DO CLIENTE");
+            table.addCell(hTermo);
 
-        PdfPCell cTermo = new PdfPCell();
-        cTermo.setBorderColor(COLOR_BORDER_LIGHT);
-        cTermo.setBorderWidth(0.8f);
-        cTermo.setPadding(7);
+            PdfPCell cTermo = new PdfPCell();
+            cTermo.setBorderColor(COLOR_BORDER_LIGHT);
+            cTermo.setBorderWidth(0.8f);
+            cTermo.setPadding(7);
 
-        Paragraph p1 = new Paragraph("1. DECLARAÇÃO DE ENTREGA E CUSTÓDIA: O cliente acima identificado declara que entregou nesta data o equipamento e os acessórios descritos neste comprovante, sob custódia desta empresa, única e exclusivamente para fins de diagnóstico técnico e montagem de proposta de orçamento.", FONT_TERMO_TEXTO);
-        p1.setSpacingAfter(3);
+            Paragraph p1 = new Paragraph("1. DECLARAÇÃO DE ATENDIMENTO EXTERNO: O cliente acima identificado atesta que os serviços técnicos, visitas, configurações e/ou instalações descritas neste comprovante foram devidamente executados no local e endereço informados por técnico especializado.", FONT_TERMO_TEXTO);
+            p1.setSpacingAfter(3);
 
-        Paragraph p2 = new Paragraph("2. CONFERÊNCIA DE ACESSÓRIOS E AVARIAS: O cliente declara que conferiu e concorda plenamente com o checklist, com os acessórios discriminados e com o estado estético inicial do aparelho (marcas de uso/avarias relatadas neste documento).", FONT_TERMO_TEXTO);
-        p2.setSpacingAfter(3);
+            Paragraph p2 = new Paragraph("2. CONFERÊNCIA DOS EQUIPAMENTOS E INSTALAÇÃO: O cliente declara que acompanhou a execução das configurações e instalações, conferindo a integridade e funcionamento dos equipamentos e periféricos atendidos no local.", FONT_TERMO_TEXTO);
+            p2.setSpacingAfter(3);
 
-        Paragraph p3 = new Paragraph("3. AUTORIZAÇÃO DE ANÁLISE TÉCNICA E ORÇAMENTO: Fica autorizada a desmontagem técnica e os testes necessários para elaboração do orçamento. Fica expressamente ajustado que NENHUM serviço de reparo pago será iniciado sem a prévia autorização expressa do cliente.", FONT_TERMO_TEXTO);
-        p3.setSpacingAfter(3);
+            Paragraph p3 = new Paragraph("3. TESTES E VALIDAÇÃO: Todos os testes operacionais foram realizados e validados na presença do cliente ou de seu representante responsável no ato da visita.", FONT_TERMO_TEXTO);
 
-        Paragraph p4 = new Paragraph("4. PRAZO DE RETIRADA / GUARDA: O cliente compromete-se a responder à proposta de orçamento e a retirar o equipamento em até 90 (noventa) dias corridos após a notificação, ciente de que após este prazo o equipamento estará sujeito a cobrança de taxa de armazenagem e às medidas legais cabíveis.", FONT_TERMO_TEXTO);
+            cTermo.addElement(p1);
+            cTermo.addElement(p2);
+            cTermo.addElement(p3);
+            table.addCell(cTermo);
+        } else {
+            PdfPCell hTermo = criarCelulaHeaderSecao("TERMO DE DECLARAÇÃO DE DEIXADA, CUSTÓDIA E AUTORIZAÇÃO DE ANÁLISE");
+            table.addCell(hTermo);
 
-        cTermo.addElement(p1);
-        cTermo.addElement(p2);
-        cTermo.addElement(p3);
-        cTermo.addElement(p4);
-        table.addCell(cTermo);
+            PdfPCell cTermo = new PdfPCell();
+            cTermo.setBorderColor(COLOR_BORDER_LIGHT);
+            cTermo.setBorderWidth(0.8f);
+            cTermo.setPadding(7);
+
+            Paragraph p1 = new Paragraph("1. DECLARAÇÃO DE ENTREGA E CUSTÓDIA: O cliente acima identificado declara que entregou nesta data o equipamento e os acessórios descritos neste comprovante, sob custódia desta empresa, única e exclusivamente para fins de diagnóstico técnico e montagem de proposta de orçamento.", FONT_TERMO_TEXTO);
+            p1.setSpacingAfter(3);
+
+            Paragraph p2 = new Paragraph("2. CONFERÊNCIA DE ACESSÓRIOS E AVARIAS: O cliente declara que conferiu e concorda plenamente com o checklist, com os acessórios discriminados e com o estado estético inicial do aparelho (marcas de uso/avarias relatadas neste documento).", FONT_TERMO_TEXTO);
+            p2.setSpacingAfter(3);
+
+            Paragraph p3 = new Paragraph("3. AUTORIZAÇÃO DE ANÁLISE TÉCNICA E ORÇAMENTO: Fica autorizada a desmontagem técnica e os testes necessários para elaboração do orçamento. Fica expressamente ajustado que NENHUM serviço de reparo pago será iniciado sem a prévia autorização expressa do cliente.", FONT_TERMO_TEXTO);
+            p3.setSpacingAfter(3);
+
+            Paragraph p4 = new Paragraph("4. PRAZO DE RETIRADA / GUARDA: O cliente compromete-se a responder à proposta de orçamento e a retirar o equipamento em até 90 (noventa) dias corridos após a notificação, ciente de que após este prazo o equipamento estará sujeito a cobrança de taxa de armazenagem e às medidas legais cabíveis.", FONT_TERMO_TEXTO);
+
+            cTermo.addElement(p1);
+            cTermo.addElement(p2);
+            cTermo.addElement(p3);
+            cTermo.addElement(p4);
+            table.addCell(cTermo);
+        }
 
         document.add(table);
     }

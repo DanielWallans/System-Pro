@@ -298,6 +298,36 @@ public class AutoBackupService {
         return config;
     }
 
+    public boolean isBackupRealizadoHoje() {
+        try {
+            if (config != null) {
+                String ultimo = config.getUltimoBackupTimestamp();
+                String dataHoje = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                if (ultimo != null && ultimo.startsWith(dataHoje)) {
+                    return true;
+                }
+                String pastaDest = config.getPastaDestino() != null ? config.getPastaDestino() : "backup";
+                File pasta = new File(pastaDest);
+                if (pasta.exists() && pasta.isDirectory()) {
+                    File[] arquivos = pasta.listFiles((dir, name) -> name.toLowerCase().endsWith(".zip") || name.toLowerCase().endsWith(".sql"));
+                    if (arquivos != null) {
+                        java.time.LocalDate hoje = java.time.LocalDate.now();
+                        for (File f : arquivos) {
+                            java.time.LocalDate dataArq = java.time.Instant.ofEpochMilli(f.lastModified())
+                                    .atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+                            if (dataArq.isEqual(hoje)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[AVISO] Falha ao verificar se backup foi feito hoje: " + e.getMessage());
+        }
+        return false;
+    }
+
     public BackupConfigDAO getConfigDAO() {
         return configDAO;
     }

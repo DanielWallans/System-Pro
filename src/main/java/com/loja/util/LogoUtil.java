@@ -18,24 +18,13 @@ public class LogoUtil {
 
     private static synchronized void carregarImagens() {
         try {
-            // 1. Tentar carregar do classpath (JAR / staging)
             URL urlIcone = LogoUtil.class.getResource("/icons/logo_icone.png");
             if (urlIcone != null) {
                 logoIcone = new ImageIcon(urlIcone).getImage();
             } else {
-                // Fallbacks do sistema de arquivos
-                String[] caminhos = {
-                    "src/main/resources/icons/logo_icone.png",
-                    "gerador_executavel/aplicacao_pronta/logo_icone.png",
-                    "gerador_executavel/logo_icone.png",
-                    "logo_icone.png"
-                };
-                for (String c : caminhos) {
-                    File f = new File(c);
-                    if (f.exists()) {
-                        logoIcone = new ImageIcon(f.getAbsolutePath()).getImage();
-                        break;
-                    }
+                File f = new File("src/main/resources/icons/logo_icone.png");
+                if (f.exists()) {
+                    logoIcone = new ImageIcon(f.getAbsolutePath()).getImage();
                 }
             }
 
@@ -43,18 +32,9 @@ public class LogoUtil {
             if (urlCompleta != null) {
                 logoCompleta = new ImageIcon(urlCompleta).getImage();
             } else {
-                String[] caminhos = {
-                    "src/main/resources/icons/logo_completa.png",
-                    "gerador_executavel/aplicacao_pronta/logo_completa.png",
-                    "gerador_executavel/logo_completa.png",
-                    "logo_completa.png"
-                };
-                for (String c : caminhos) {
-                    File f = new File(c);
-                    if (f.exists()) {
-                        logoCompleta = new ImageIcon(f.getAbsolutePath()).getImage();
-                        break;
-                    }
+                File f = new File("src/main/resources/icons/logo_completa.png");
+                if (f.exists()) {
+                    logoCompleta = new ImageIcon(f.getAbsolutePath()).getImage();
                 }
             }
 

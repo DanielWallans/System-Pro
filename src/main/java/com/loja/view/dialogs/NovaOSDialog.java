@@ -3,6 +3,7 @@ package com.loja.view.dialogs;
 import com.loja.model.Cliente;
 import com.loja.model.Equipamento;
 import com.loja.model.OrdemServico;
+import com.loja.repository.CaixaDAO;
 import com.loja.repository.ClienteDAO;
 import com.loja.repository.EquipamentoDAO;
 import com.loja.repository.OSFotoDAO;
@@ -22,6 +23,14 @@ public class NovaOSDialog extends JDialog {
     private final OrdemServicoDAO osDAO;
     private boolean salvo = false;
     private OrdemServico osCriada = null;
+
+    // Modalidade do Atendimento
+    private JRadioButton rbAtendimentoBalcao;
+    private JRadioButton rbAtendimentoExterno;
+    private JPanel pnlDadosExternos;
+    private JTextField txtEnderecoExterno;
+    private JTextField txtAparelhosExterno;
+    private JButton btnPuxarEnderecoCliente;
 
     // Passo 1 & 2
     private JComboBox<EquipamentoDialog.ClienteComboItem> cbClientes;
@@ -66,6 +75,10 @@ public class NovaOSDialog extends JDialog {
     private JComboBox<String> outLiga, outFuncao, outFisico, outConectores;
     private JTextField outOutros;
 
+    // 9. Checklist Serviço Externo (Visita Técnica / No Local)
+    private JComboBox<String> extTipoLocal, extTipoServico, extConectividade, extTestes, extAceite;
+    private JTextField extOutros;
+
     // Passo 4 & 5
     private JTextArea txtProblema;
     private JTextArea txtObservacoes;
@@ -95,7 +108,7 @@ public class NovaOSDialog extends JDialog {
 
         initComponents();
         carregarClientes();
-        setSize(860, 650);
+        setSize(880, 720);
         setLocationRelativeTo(owner);
     }
 
@@ -105,6 +118,66 @@ public class NovaOSDialog extends JDialog {
         JPanel mainPanel = new JPanel();
         mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
         mainPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+
+        // 0. Bloco Tipo de Atendimento (Balcão vs Serviço Externo)
+        JPanel pnlTipoAtendimento = new JPanel(new BorderLayout(10, 8));
+        pnlTipoAtendimento.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), 
+                " Modalidade do Atendimento ", TitledBorder.LEFT, TitledBorder.TOP, 
+                new Font("SansSerif", Font.BOLD, 13)));
+
+        JPanel pnlRadios = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 4));
+        rbAtendimentoBalcao = new JRadioButton("🏢 Atendimento Balcão / Loja (Equipamento deixado na assistência)", true);
+        rbAtendimentoExterno = new JRadioButton("🚗 Serviço Externo (Visita Técnica / Atendimento no Local)", false);
+        rbAtendimentoBalcao.setFont(new Font("SansSerif", Font.BOLD, 12));
+        rbAtendimentoExterno.setFont(new Font("SansSerif", Font.BOLD, 12));
+
+        ButtonGroup bgTipo = new ButtonGroup();
+        bgTipo.add(rbAtendimentoBalcao);
+        bgTipo.add(rbAtendimentoExterno);
+
+        pnlRadios.add(rbAtendimentoBalcao);
+        pnlRadios.add(rbAtendimentoExterno);
+        pnlTipoAtendimento.add(pnlRadios, BorderLayout.NORTH);
+
+        // Painel expansível com detalhes do atendimento externo
+        pnlDadosExternos = new JPanel(new GridBagLayout());
+        pnlDadosExternos.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, Color.LIGHT_GRAY),
+                BorderFactory.createEmptyBorder(8, 8, 4, 8)
+        ));
+        pnlDadosExternos.setVisible(false);
+
+        GridBagConstraints gbcExt = new GridBagConstraints();
+        gbcExt.fill = GridBagConstraints.HORIZONTAL;
+        gbcExt.insets = new Insets(4, 4, 4, 4);
+
+        txtEnderecoExterno = new JTextField();
+        txtAparelhosExterno = new JTextField();
+        txtAparelhosExterno.setToolTipText("Ex: Notebook Dell (instalação de teclado) + Impressora Brother (instalação no local)");
+        btnPuxarEnderecoCliente = new JButton("🏠 Usar Endereço do Cliente");
+        UIComponents.estilizarBotaoSecundario(btnPuxarEnderecoCliente);
+        btnPuxarEnderecoCliente.addActionListener(e -> puxarEnderecoClienteSelecionado());
+
+        gbcExt.gridx = 0; gbcExt.gridy = 0; gbcExt.weightx = 0.2;
+        pnlDadosExternos.add(new JLabel("Endereço da Visita / Local *:"), gbcExt);
+        gbcExt.gridx = 1; gbcExt.weightx = 0.6;
+        pnlDadosExternos.add(txtEnderecoExterno, gbcExt);
+        gbcExt.gridx = 2; gbcExt.weightx = 0.2;
+        pnlDadosExternos.add(btnPuxarEnderecoCliente, gbcExt);
+
+        gbcExt.gridx = 0; gbcExt.gridy = 1; gbcExt.weightx = 0.2;
+        pnlDadosExternos.add(new JLabel("Aparelhos / Itens Atendidos:"), gbcExt);
+        gbcExt.gridx = 1; gbcExt.gridwidth = 2; gbcExt.weightx = 0.8;
+        pnlDadosExternos.add(txtAparelhosExterno, gbcExt);
+        gbcExt.gridwidth = 1;
+
+        pnlTipoAtendimento.add(pnlDadosExternos, BorderLayout.CENTER);
+
+        rbAtendimentoBalcao.addActionListener(e -> alternarModalidadeAtendimento(false));
+        rbAtendimentoExterno.addActionListener(e -> alternarModalidadeAtendimento(true));
+
+        mainPanel.add(pnlTipoAtendimento);
+        mainPanel.add(Box.createVerticalStrut(10));
 
         // 1. Bloco Cliente & Equipamento
         JPanel pnlCabecalho = new JPanel(new GridBagLayout());
@@ -122,7 +195,12 @@ public class NovaOSDialog extends JDialog {
         btnNovoEquipamento = new JButton("+ Novo Equipamento");
         UIComponents.estilizarBotaoSecundario(btnNovoEquipamento);
 
-        cbClientes.addActionListener(e -> carregarEquipamentosDoCliente());
+        cbClientes.addActionListener(e -> {
+            carregarEquipamentosDoCliente();
+            if (rbAtendimentoExterno.isSelected()) {
+                puxarEnderecoClienteSelecionado();
+            }
+        });
         cbEquipamentos.addActionListener(e -> atualizarChecklistPorTipoEquipamento());
         btnNovoCliente.addActionListener(e -> abrirNovoCliente());
         btnNovoEquipamento.addActionListener(e -> abrirNovoEquipamento());
@@ -148,7 +226,7 @@ public class NovaOSDialog extends JDialog {
         clChecklist = new CardLayout();
         pnlChecklistCards = new JPanel(clChecklist);
         pnlChecklistCards.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), 
-                " 3. Checklist Técnico Especializado de Entrada ", TitledBorder.LEFT, TitledBorder.TOP, 
+                " 3. Checklist Técnico Especializado de Entrada / Vistoria ", TitledBorder.LEFT, TitledBorder.TOP, 
                 new Font("SansSerif", Font.BOLD, 13)));
 
         pnlChecklistCards.add(criarCardConsole(), "CONSOLE");
@@ -159,6 +237,7 @@ public class NovaOSDialog extends JDialog {
         pnlChecklistCards.add(criarCardImpressora(), "IMPRESSORA");
         pnlChecklistCards.add(criarCardMonitor(), "MONITOR");
         pnlChecklistCards.add(criarCardOutros(), "OUTROS");
+        pnlChecklistCards.add(criarCardExterno(), "EXTERNO");
 
         mainPanel.add(pnlChecklistCards);
         mainPanel.add(Box.createVerticalStrut(10));
@@ -582,6 +661,56 @@ public class NovaOSDialog extends JDialog {
         return criarWrapperCard(pnl);
     }
 
+    // 9. Checklist de Serviço Externo (Visita Técnica / No Local)
+    private JPanel criarCardExterno() {
+        JPanel pnl = new JPanel(new GridLayout(3, 2, 12, 6));
+        extTipoLocal = new JComboBox<>(new String[]{
+                "Residencial (Casa / Apartamento)", 
+                "Comercial / Escritório", 
+                "Consultório / Clínica", 
+                "Loja / Estabelecimento Comercial", 
+                "Indústria / Galpão", 
+                "Outro Local"
+        });
+        extTipoServico = new JComboBox<>(new String[]{
+                "Instalação de Periféricos / Acessórios (Teclado, Mouse, Cabos)", 
+                "Instalação e Configuração de Impressora (Brother, Epson, HP, etc.)", 
+                "Instalação / Troca de Teclado de Notebook no Local", 
+                "Configuração de Rede / Wi-Fi / Roteador / Cabeamento", 
+                "Formatação / Configuração de Sistema e Softwares", 
+                "Manutenção Preventiva / Limpeza Física no Local", 
+                "Múltiplos Serviços / Instalações Diversas", 
+                "Outro Atendimento no Local"
+        });
+        extConectividade = new JComboBox<>(new String[]{
+                "Rede / Wi-Fi Conectada e Operante", 
+                "Sem Rede / Sem Internet no Local", 
+                "Configuração de Rede / Wi-Fi Realizada", 
+                "Não se Aplica"
+        });
+        extTestes = new JComboBox<>(new String[]{
+                "Todos os equipamentos testados e funcionando perfeitamente", 
+                "Impressão de teste e periféricos testados e 100% OK", 
+                "Testes parciais realizados na presença do cliente", 
+                "Pendente validação final pelo cliente"
+        });
+        extAceite = new JComboBox<>(new String[]{
+                "Sim - Serviços Aprovados e Aceitos pelo Cliente no Local", 
+                "Serviço Concluído / Equipamentos Entregues Funcionando", 
+                "Pendente Retorno Técnico / Nova Visita", 
+                "Pendente Peça Adicional / Orçamento Complementar"
+        });
+        extOutros = new JTextField("Nenhuma observação adicional");
+
+        pnl.add(criarItemChecklist("1. Tipo de Imóvel / Local da Visita:", extTipoLocal));
+        pnl.add(criarItemChecklist("2. Serviço Principal Realizado:", extTipoServico));
+        pnl.add(criarItemChecklist("3. Rede / Conectividade no Local:", extConectividade));
+        pnl.add(criarItemChecklist("4. Testes Realizados com o Cliente:", extTestes));
+        pnl.add(criarItemChecklist("5. Aceite / Conclusão no Local:", extAceite));
+        pnl.add(criarItemChecklist("6. Observações Adicionais da Visita:", extOutros));
+        return criarWrapperCard(pnl);
+    }
+
     private JPanel criarWrapperCard(JPanel gridPanel) {
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setOpaque(false);
@@ -644,20 +773,76 @@ public class NovaOSDialog extends JDialog {
         }
     }
 
+    private void puxarEnderecoClienteSelecionado() {
+        EquipamentoDialog.ClienteComboItem item = (EquipamentoDialog.ClienteComboItem) cbClientes.getSelectedItem();
+        if (item != null) {
+            Cliente c = clienteDAO.buscarPorId(item.id);
+            if (c != null && c.getEndereco() != null && !c.getEndereco().trim().isEmpty()) {
+                txtEnderecoExterno.setText(c.getEndereco().trim());
+            }
+        }
+    }
+
+    private void alternarModalidadeAtendimento(boolean externo) {
+        pnlDadosExternos.setVisible(externo);
+        if (externo) {
+            puxarEnderecoClienteSelecionado();
+            clChecklist.show(pnlChecklistCards, "EXTERNO");
+            tipoChecklistAtual = "EXTERNO";
+            // Adicionar opção de serviço externo no combo de equipamentos se não existir
+            boolean temItemExterno = false;
+            for (int i = 0; i < cbEquipamentos.getItemCount(); i++) {
+                if (cbEquipamentos.getItemAt(i).id == -1) {
+                    temItemExterno = true;
+                    break;
+                }
+            }
+            if (!temItemExterno) {
+                cbEquipamentos.insertItemAt(new EquipamentoComboItem(-1, "SERVIÇO EXTERNO", "Atendimento no Local / Múltiplos Aparelhos"), 0);
+                cbEquipamentos.setSelectedIndex(0);
+            }
+        } else {
+            // Remover opção temporária de serviço externo
+            for (int i = 0; i < cbEquipamentos.getItemCount(); i++) {
+                if (cbEquipamentos.getItemAt(i).id == -1) {
+                    cbEquipamentos.removeItemAt(i);
+                    break;
+                }
+            }
+            atualizarChecklistPorTipoEquipamento();
+        }
+        revalidate();
+        repaint();
+    }
+
     private void carregarEquipamentosDoCliente() {
         cbEquipamentos.removeAllItems();
         EquipamentoDialog.ClienteComboItem item = (EquipamentoDialog.ClienteComboItem) cbClientes.getSelectedItem();
         if (item == null) return;
+
+        if (rbAtendimentoExterno != null && rbAtendimentoExterno.isSelected()) {
+            cbEquipamentos.addItem(new EquipamentoComboItem(-1, "SERVIÇO EXTERNO", "Atendimento no Local / Múltiplos Aparelhos"));
+        }
 
         List<Equipamento> equips = equipDAO.buscarPorCliente(item.id);
         for (Equipamento eq : equips) {
             String desc = eq.getMarca() + " " + eq.getModelo() + " (S/N: " + eq.getNumeroSerie() + ")";
             cbEquipamentos.addItem(new EquipamentoComboItem(eq.getId(), eq.getTipo(), desc));
         }
+
+        if (cbEquipamentos.getItemCount() > 0) {
+            cbEquipamentos.setSelectedIndex(0);
+        }
         atualizarChecklistPorTipoEquipamento();
     }
 
     private void atualizarChecklistPorTipoEquipamento() {
+        if (rbAtendimentoExterno != null && rbAtendimentoExterno.isSelected()) {
+            clChecklist.show(pnlChecklistCards, "EXTERNO");
+            tipoChecklistAtual = "EXTERNO";
+            return;
+        }
+
         EquipamentoComboItem item = (EquipamentoComboItem) cbEquipamentos.getSelectedItem();
         if (item == null) {
             clChecklist.show(pnlChecklistCards, "NOTEBOOK");
@@ -727,15 +912,45 @@ public class NovaOSDialog extends JDialog {
                 return;
             }
 
-            EquipamentoComboItem equipItem = (EquipamentoComboItem) cbEquipamentos.getSelectedItem();
-            if (equipItem == null) {
-                JOptionPane.showMessageDialog(this, "Selecione ou cadastre um equipamento para este cliente antes de continuar!", "Aviso", JOptionPane.WARNING_MESSAGE);
+            boolean isExterno = rbAtendimentoExterno.isSelected();
+            String enderecoExterno = txtEnderecoExterno.getText().trim();
+            if (isExterno && enderecoExterno.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Por favor, informe o endereço onde a visita/serviço externo foi ou será realizado!", "Aviso", JOptionPane.WARNING_MESSAGE);
+                txtEnderecoExterno.requestFocus();
                 return;
+            }
+
+            EquipamentoComboItem equipItem = (EquipamentoComboItem) cbEquipamentos.getSelectedItem();
+            int equipIdFinal;
+            if (isExterno && (equipItem == null || equipItem.id == -1)) {
+                String descAparelhos = txtAparelhosExterno.getText().trim();
+                if (descAparelhos.isEmpty()) {
+                    descAparelhos = "Atendimento Técnico no Local / Visita";
+                }
+                Equipamento eqExt = null;
+                List<Equipamento> equips = equipDAO.buscarPorCliente(clienteItem.id);
+                for (Equipamento eq : equips) {
+                    if ("Serviço Externo".equalsIgnoreCase(eq.getTipo())) {
+                        eqExt = eq;
+                        break;
+                    }
+                }
+                if (eqExt == null) {
+                    eqExt = new Equipamento(clienteItem.id, "Serviço Externo", "No Local", descAparelhos, "EXTERNO");
+                    equipDAO.salvar(eqExt);
+                }
+                equipIdFinal = eqExt.getId();
+            } else {
+                if (equipItem == null) {
+                    JOptionPane.showMessageDialog(this, "Selecione ou cadastre um equipamento para este cliente antes de continuar!", "Aviso", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                equipIdFinal = equipItem.id;
             }
 
             String defeito = txtProblema.getText().trim();
             if (defeito.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "O relato do defeito/problema é obrigatório!", "Aviso", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "O relato do defeito / serviço solicitado é obrigatório!", "Aviso", JOptionPane.WARNING_MESSAGE);
                 txtProblema.requestFocus();
                 return;
             }
@@ -745,6 +960,23 @@ public class NovaOSDialog extends JDialog {
             // Montar checklist textual específico e rico do tipo ativo
             String checklist;
             switch (tipoChecklistAtual) {
+                case "EXTERNO" -> checklist = String.format(
+                        "• Modalidade: Serviço Externo (Visita Técnica / No Local)\n" +
+                        "• Local da Visita: %s | Endereço: %s\n" +
+                        "• Aparelhos / Itens Atendidos: %s\n" +
+                        "• Escopo Principal: %s\n" +
+                        "• Rede / Conectividade no Local: %s | Testes no Local: %s\n" +
+                        "• Aceite / Conclusão: %s\n" +
+                        "• Obs. da Visita: %s",
+                        extTipoLocal != null ? extTipoLocal.getSelectedItem() : "N/A",
+                        enderecoExterno,
+                        txtAparelhosExterno.getText().trim().isEmpty() ? "Não especificado" : txtAparelhosExterno.getText().trim(),
+                        extTipoServico != null ? extTipoServico.getSelectedItem() : "N/A",
+                        extConectividade != null ? extConectividade.getSelectedItem() : "N/A",
+                        extTestes != null ? extTestes.getSelectedItem() : "N/A",
+                        extAceite != null ? extAceite.getSelectedItem() : "N/A",
+                        extOutros != null ? extOutros.getText().trim() : ""
+                );
                 case "CONSOLE" -> checklist = String.format(
                         "• Categoria: Console de Vídeo Game\n" +
                         "• Liga / Led Status: %s | Saída HDMI/Vídeo: %s\n" +
@@ -851,27 +1083,48 @@ public class NovaOSDialog extends JDialog {
                 );
             }
 
-            OrdemServico os = new OrdemServico(clienteItem.id, equipItem.id, defeito, checklist, obs);
+            OrdemServico os = new OrdemServico(clienteItem.id, equipIdFinal, defeito, checklist, obs,
+                    isExterno ? "EXTERNO" : "BALCAO", isExterno ? enderecoExterno : "");
             if (osDAO.abrirOS(os)) {
                 this.salvo = true;
                 this.osCriada = os;
-                JOptionPane.showMessageDialog(this, 
-                        "Ordem de Serviço #" + os.getId() + " aberta com sucesso!\nCliente: " + clienteItem.nome, 
-                        "OS Gerada com Sucesso", JOptionPane.INFORMATION_MESSAGE);
+                String msgSucesso = isExterno 
+                        ? "Ordem de Serviço de Serviço Externo #" + os.getId() + " aberta com sucesso!\nCliente: " + clienteItem.nome + "\nLocal da Visita: " + enderecoExterno
+                        : "Ordem de Serviço #" + os.getId() + " aberta com sucesso!\nCliente: " + clienteItem.nome;
+                JOptionPane.showMessageDialog(this, msgSucesso, "OS Gerada com Sucesso", JOptionPane.INFORMATION_MESSAGE);
 
                 int optFoto = JOptionPane.showConfirmDialog(this,
-                        "Deseja anexar fotos da máquina / avarias agora?\n(Ex: dobradiça quebrada, carcaça riscada, tela trincada)",
+                        "Deseja anexar fotos do atendimento / máquinas / local agora?",
                         "Anexar Fotos da OS #" + os.getId(), JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
                 if (optFoto == JOptionPane.YES_OPTION) {
                     GerenciadorFotosOSDialog fotoDialog = new GerenciadorFotosOSDialog(this, os.getId(), new OSFotoDAO());
                     fotoDialog.setVisible(true);
                 }
 
-                int opt = JOptionPane.showConfirmDialog(this,
-                        "Deseja gerar o Comprovante de Entrada do Equipamento em PDF agora?\n(Termo de Deixada para o cliente assinar na loja)",
-                        "Comprovante de Entrada", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-                if (opt == JOptionPane.YES_OPTION) {
-                    gerarComprovanteEntradaPDF(os, clienteItem.id, equipItem.id);
+                Object[] opcoes = { "🖨️ Cupom Térmico (58mm / 80mm)", "📄 Documento PDF (A4)", "Ambos", "Agora Não" };
+                String tituloDialogDoc = isExterno 
+                        ? "Comprovante de Atendimento Externo • OS #" + os.getId()
+                        : "Comprovante de Entrada • OS #" + os.getId();
+                String msgDialogDoc = isExterno
+                        ? "Deseja emitir o Comprovante de Atendimento Externo agora?\n(Termo de serviços e instalações realizadas no local do cliente)"
+                        : "Deseja emitir o Comprovante de Entrada do Equipamento agora?\n(Termo de Deixada para o cliente assinar na loja)";
+
+                int opt = JOptionPane.showOptionDialog(this,
+                        msgDialogDoc,
+                        tituloDialogDoc,
+                        JOptionPane.YES_NO_CANCEL_OPTION,
+                        JOptionPane.QUESTION_MESSAGE,
+                        null,
+                        opcoes,
+                        opcoes[0]);
+
+                if (opt == 0) {
+                    abrirComprovanteTermico(os, clienteItem.id, equipIdFinal);
+                } else if (opt == 1) {
+                    gerarComprovanteEntradaPDF(os, clienteItem.id, equipIdFinal);
+                } else if (opt == 2) {
+                    abrirComprovanteTermico(os, clienteItem.id, equipIdFinal);
+                    gerarComprovanteEntradaPDF(os, clienteItem.id, equipIdFinal);
                 }
 
                 dispose();
@@ -881,6 +1134,17 @@ public class NovaOSDialog extends JDialog {
         } catch (Exception ex) {
             ex.printStackTrace();
             JOptionPane.showMessageDialog(this, "Ocorreu um erro ao processar a abertura da OS:\n" + ex.getMessage(), "Erro Inesperado", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void abrirComprovanteTermico(OrdemServico os, int clienteId, int equipId) {
+        try {
+            Cliente cliente = clienteDAO.buscarPorId(clienteId);
+            Equipamento equip = equipDAO.buscarPorId(equipId);
+            ComprovanteOSDialog dialog = new ComprovanteOSDialog(this, os, cliente, equip, null, null, new CaixaDAO(), true);
+            dialog.setVisible(true);
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Erro ao abrir Comprovante Térmico: " + ex.getMessage(), "Erro", JOptionPane.ERROR_MESSAGE);
         }
     }
 

@@ -714,10 +714,21 @@ public class MontarOrcamentoDialog extends JDialog {
                     } finally {
                         atualizandoStatus = false;
                     }
-                    int optPDF = JOptionPane.showConfirmDialog(this,
-                            "Deseja gerar o Comprovante Oficial de Entrega em PDF agora?",
-                            "Comprovante de Entrega", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-                    if (optPDF == JOptionPane.YES_OPTION) {
+                    Object[] opcoes = { "🖨️ Cupom Térmico (58mm / 80mm)", "📄 Documento PDF (A4)", "Ambos", "Agora Não" };
+                    int optComp = JOptionPane.showOptionDialog(this,
+                            "Deseja emitir o Comprovante de Entrega e Garantia agora?",
+                            "Comprovante de Entrega • OS #" + os.getId(),
+                            JOptionPane.YES_NO_CANCEL_OPTION,
+                            JOptionPane.QUESTION_MESSAGE,
+                            null,
+                            opcoes,
+                            opcoes[0]);
+                    if (optComp == 0) {
+                        abrirComprovanteTermico(cliente, equip);
+                    } else if (optComp == 1) {
+                        gerarComprovanteEntregaPDF(cliente, equip);
+                    } else if (optComp == 2) {
+                        abrirComprovanteTermico(cliente, equip);
                         gerarComprovanteEntregaPDF(cliente, equip);
                     }
                 } else {
@@ -784,10 +795,21 @@ public class MontarOrcamentoDialog extends JDialog {
                 atualizandoStatus = false;
             }
 
-            int optPDF = JOptionPane.showConfirmDialog(this,
-                    "Deseja gerar o Comprovante Oficial de Entrega em PDF agora?",
-                    "Comprovante de Entrega", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-            if (optPDF == JOptionPane.YES_OPTION) {
+            Object[] opcoes = { "🖨️ Cupom Térmico (58mm / 80mm)", "📄 Documento PDF (A4)", "Ambos", "Agora Não" };
+            int optComp = JOptionPane.showOptionDialog(this,
+                    "Deseja emitir o Comprovante de Entrega e Garantia agora?",
+                    "Comprovante de Entrega • OS #" + os.getId(),
+                    JOptionPane.YES_NO_CANCEL_OPTION,
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    opcoes,
+                    opcoes[0]);
+            if (optComp == 0) {
+                abrirComprovanteTermico(cliente, equip);
+            } else if (optComp == 1) {
+                gerarComprovanteEntregaPDF(cliente, equip);
+            } else if (optComp == 2) {
+                abrirComprovanteTermico(cliente, equip);
                 gerarComprovanteEntregaPDF(cliente, equip);
             }
         } else {
@@ -815,20 +837,23 @@ public class MontarOrcamentoDialog extends JDialog {
         boolean isFinalizada = statusAtual != null
                 && (statusAtual.contains("Entregue") || statusAtual.contains("Finalizado"));
         if (isFinalizada) {
-            Object[] opcoes = { "Comprovante de Entrega (PDF)", "Orçamento Original (PDF)", "Cancelar" };
+            Object[] opcoes = { "🖨️ Cupom Térmico (58mm / 80mm)", "📄 Comprovante de Entrega (PDF)", "📄 Orçamento Original (PDF)", "Cancelar" };
             int escolha = JOptionPane.showOptionDialog(
                     this,
-                    "Esta Ordem de Serviço está FINALIZADA.\nQual documento em PDF deseja emitir?",
-                    "Opções de Emissão em PDF - OS #" + os.getId(),
+                    "Esta Ordem de Serviço está FINALIZADA.\nQual documento deseja emitir?",
+                    "Opções de Emissão de Documento - OS #" + os.getId(),
                     JOptionPane.YES_NO_CANCEL_OPTION,
                     JOptionPane.QUESTION_MESSAGE,
                     null,
                     opcoes,
                     opcoes[0]);
             if (escolha == 0) {
+                abrirComprovanteTermico(cliente, equip);
+                return;
+            } else if (escolha == 1) {
                 gerarComprovanteEntregaPDF(cliente, equip);
                 return;
-            } else if (escolha != 1) {
+            } else if (escolha != 2) {
                 return;
             }
         }
@@ -860,6 +885,11 @@ public class MontarOrcamentoDialog extends JDialog {
                         JOptionPane.ERROR_MESSAGE);
             }
         }
+    }
+
+    private void abrirComprovanteTermico(Cliente cliente, Equipamento equip) {
+        ComprovanteOSDialog dialog = new ComprovanteOSDialog(this, os, cliente, equip, listaServicos, listaPecas, new com.loja.repository.CaixaDAO(), false);
+        dialog.setVisible(true);
     }
 
     private void gerarComprovanteEntregaPDF(Cliente cliente, Equipamento equip) {

@@ -18,6 +18,7 @@ public class AdicionarPecaOSDialog extends JDialog {
     private JSpinner spQuantidade;
     private JLabel lblPrecoUnit;
     private JLabel lblEstoqueDisp;
+    private JLabel lblLocalizacao;
 
     public static class ProdutoComboItem {
         public final Produto produto;
@@ -40,7 +41,7 @@ public class AdicionarPecaOSDialog extends JDialog {
 
         initComponents();
         carregarProdutos();
-        setSize(480, 260);
+        setSize(500, 300);
         setLocationRelativeTo(owner);
     }
 
@@ -57,6 +58,7 @@ public class AdicionarPecaOSDialog extends JDialog {
         spQuantidade = new JSpinner(new SpinnerNumberModel(1, 1, 999, 1));
         lblPrecoUnit = new JLabel("R$ 0,00");
         lblEstoqueDisp = new JLabel("0 unid.");
+        lblLocalizacao = new JLabel("Não informada");
 
         cbProdutos.addActionListener(e -> atualizarInfoProduto());
 
@@ -66,16 +68,21 @@ public class AdicionarPecaOSDialog extends JDialog {
         formPanel.add(cbProdutos, gbc);
 
         gbc.gridx = 0; gbc.gridy = 1;
+        formPanel.add(new JLabel("Localização / Gaveta:"), gbc);
+        gbc.gridx = 1;
+        formPanel.add(lblLocalizacao, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 2;
         formPanel.add(new JLabel("Estoque Disponível:"), gbc);
         gbc.gridx = 1;
         formPanel.add(lblEstoqueDisp, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 2;
+        gbc.gridx = 0; gbc.gridy = 3;
         formPanel.add(new JLabel("Preço Unitário:"), gbc);
         gbc.gridx = 1;
         formPanel.add(lblPrecoUnit, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.gridx = 0; gbc.gridy = 4;
         formPanel.add(new JLabel("Quantidade a Usar:"), gbc);
         gbc.gridx = 1;
         formPanel.add(spQuantidade, gbc);
@@ -109,9 +116,12 @@ public class AdicionarPecaOSDialog extends JDialog {
         if (item != null) {
             lblPrecoUnit.setText(String.format("R$ %.2f", item.produto.getPreco()));
             lblEstoqueDisp.setText(item.produto.getEstoque() + " unidades");
+            String loc = (item.produto.getLocalizacao() != null && !item.produto.getLocalizacao().isEmpty()) ? item.produto.getLocalizacao() : "Não informada";
+            lblLocalizacao.setText(loc);
         } else {
             lblPrecoUnit.setText("R$ 0,00");
             lblEstoqueDisp.setText("0");
+            lblLocalizacao.setText("Não informada");
         }
     }
 

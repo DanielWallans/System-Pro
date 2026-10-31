@@ -167,9 +167,16 @@ public class DashboardPanel extends JPanel {
                 });
         btnNovoProd.setPreferredSize(new Dimension(150, 34));
 
+        JButton btnFinanceiro = UIComponents
+                .criarBotaoSecundario("📊 Gestão Financeira", () -> {
+                    mainFrame.selecionarAba("FINANCEIRO");
+                });
+        btnFinanceiro.setPreferredSize(new Dimension(165, 34));
+
         pnlBotoes.add(btnNovaOS);
         pnlBotoes.add(btnNovoCli);
         pnlBotoes.add(btnNovoProd);
+        pnlBotoes.add(btnFinanceiro);
 
         pnlAcoesContainer.add(pnlAcoesLabel, BorderLayout.WEST);
         pnlAcoesContainer.add(pnlBotoes, BorderLayout.CENTER);
@@ -305,8 +312,15 @@ public class DashboardPanel extends JPanel {
         int totalClientes = clienteDAO.buscarTodos().size();
         lblCardClientes.setText(String.valueOf(totalClientes));
 
-        int totalPecas = produtoDAO.buscarTodos().size();
-        lblCardEstoque.setText(String.valueOf(totalPecas));
+        List<com.loja.model.Produto> todosProdutos = produtoDAO.buscarTodos();
+        long zerados = todosProdutos.stream().filter(p -> p.getEstoque() <= 0).count();
+        if (zerados > 0) {
+            lblCardEstoque.setText("<html>" + todosProdutos.size() + " <font size='3' color='#e74c3c'>(" + zerados + " zerado" + (zerados > 1 ? "s" : "") + ")</font></html>");
+            lblCardEstoque.setToolTipText("Atenção: " + zerados + " produto(s) com estoque zerado no catálogo!");
+        } else {
+            lblCardEstoque.setText(String.valueOf(todosProdutos.size()));
+            lblCardEstoque.setToolTipText(todosProdutos.size() + " produtos cadastrados no catálogo");
+        }
 
         double saldo = caixaDAO.obterSaldo();
         lblCardCaixa.setText(String.format("R$ %.2f", saldo));

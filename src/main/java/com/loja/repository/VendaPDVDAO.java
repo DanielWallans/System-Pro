@@ -21,7 +21,7 @@ public class VendaPDVDAO {
         com.loja.model.CaixaSessao sessaoAberta = caixaDAO.obterSessaoAberta();
         Integer sessaoId = sessaoAberta != null ? sessaoAberta.getId() : null;
 
-        String sqlVenda = "INSERT INTO venda_pdv (subtotal, desconto, valor_total, valor_liquido, observacoes, sessao_id, data_hora) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        String sqlVenda = "INSERT INTO venda_pdv (subtotal, desconto, valor_total, valor_liquido, observacoes, sessao_id, data_hora, cliente_id, cliente_nome, cliente_cpf) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         String sqlItem = "INSERT INTO venda_pdv_itens (venda_id, produto_id, nome_produto, quantidade, valor_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)";
         String sqlBaixaEstoque = "UPDATE produto SET estoque = estoque - ? WHERE id = ?";
         String sqlPagamento = "INSERT INTO venda_pagamento (venda_id, os_id, modalidade, valor_bruto, taxa_percentual, valor_taxa, valor_liquido, parcelas, data_hora) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
@@ -41,6 +41,9 @@ public class VendaPDVDAO {
                     stmtVenda.setString(5, venda.getObservacoes());
                     if (sessaoId != null) stmtVenda.setInt(6, sessaoId); else stmtVenda.setNull(6, java.sql.Types.INTEGER);
                     stmtVenda.setTimestamp(7, java.sql.Timestamp.valueOf(venda.getDataHora() != null ? venda.getDataHora() : LocalDateTime.now()));
+                    if (venda.getClienteId() != null && venda.getClienteId() > 0) stmtVenda.setInt(8, venda.getClienteId()); else stmtVenda.setNull(8, java.sql.Types.INTEGER);
+                    stmtVenda.setString(9, venda.getClienteNome());
+                    stmtVenda.setString(10, venda.getClienteCpf());
                     stmtVenda.executeUpdate();
 
                     try (ResultSet rs = stmtVenda.getGeneratedKeys()) {
@@ -51,9 +54,11 @@ public class VendaPDVDAO {
                     }
                 }
 
-                // 2. Gravar Itens e Dar Baixa no Estoque
+                // 2. Gravar Itens e Dar Baixa no Estoque com Rastreabilidade Logística
+                String sqlGetEstoque = "SELECT estoque FROM produto WHERE id = ?";
                 try (PreparedStatement stmtItem = conn.prepareStatement(sqlItem);
-                     PreparedStatement stmtBaixa = conn.prepareStatement(sqlBaixaEstoque)) {
+                     PreparedStatement stmtBaixa = conn.prepareStatement(sqlBaixaEstoque);
+                     PreparedStatement stmtGet = conn.prepareStatement(sqlGetEstoque)) {
                     for (ItemVenda item : venda.getItens()) {
                         stmtItem.setInt(1, vendaId);
                         stmtItem.setInt(2, item.getProdutoId());
@@ -64,9 +69,28 @@ public class VendaPDVDAO {
                         stmtItem.addBatch();
 
                         if (item.getProdutoId() > 0) {
+                            int saldoAnt = 0;
+                            stmtGet.setInt(1, item.getProdutoId());
+                            try (ResultSet rs = stmtGet.executeQuery()) {
+                                if (rs.next()) saldoAnt = rs.getInt("estoque");
+                            }
+                            int saldoPost = saldoAnt - item.getQuantidade();
+
                             stmtBaixa.setInt(1, item.getQuantidade());
                             stmtBaixa.setInt(2, item.getProdutoId());
                             stmtBaixa.addBatch();
+
+                            EstoqueMovimentoDAO.registrarMovimentoConexao(conn,
+                                    item.getProdutoId(),
+                                    item.getNomeProduto(),
+                                    "SAIDA",
+                                    item.getQuantidade(),
+                                    saldoAnt,
+                                    saldoPost,
+                                    "VENDA_PDV",
+                                    "Venda #" + vendaId,
+                                    (sessaoAberta != null ? sessaoAberta.getOperadorAbertura() : "Caixa Balcão"),
+                                    "Venda de balcão concluída");
                         }
                     }
                     stmtItem.executeBatch();
@@ -136,7 +160,7 @@ public class VendaPDVDAO {
 
     public List<VendaPDV> listarVendasPeriodo(LocalDateTime inicio, LocalDateTime fim) {
         List<VendaPDV> lista = new ArrayList<>();
-        String sql = "SELECT id, subtotal, desconto, valor_total, valor_liquido, observacoes, data_hora FROM venda_pdv " +
+        String sql = "SELECT id, subtotal, desconto, valor_total, valor_liquido, observacoes, data_hora, cliente_id, cliente_nome, cliente_cpf FROM venda_pdv " +
                      "WHERE data_hora BETWEEN ? AND ? ORDER BY id DESC";
 
         try (Connection conn = ConnectionFactory.getConnection();
@@ -156,11 +180,82 @@ public class VendaPDVDAO {
                             rs.getString("observacoes"),
                             ts != null ? ts.toLocalDateTime() : LocalDateTime.now()
                     );
+                    int cId = rs.getInt("cliente_id");
+                    if (!rs.wasNull()) v.setClienteId(cId);
+                    v.setClienteNome(rs.getString("cliente_nome"));
+                    v.setClienteCpf(rs.getString("cliente_cpf"));
                     lista.add(v);
                 }
             }
         } catch (SQLException e) {
             System.err.println("[ERRO DB] Falha ao listar vendas do período: " + e.getMessage());
+        }
+        return lista;
+    }
+
+    public VendaPDV buscarPorId(int id) {
+        String sql = "SELECT id, subtotal, desconto, valor_total, valor_liquido, observacoes, data_hora, cliente_id, cliente_nome, cliente_cpf FROM venda_pdv WHERE id = ?";
+        try (Connection conn = ConnectionFactory.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, id);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    java.sql.Timestamp ts = rs.getTimestamp("data_hora");
+                    VendaPDV v = new VendaPDV(
+                            rs.getInt("id"),
+                            rs.getDouble("subtotal"),
+                            rs.getDouble("desconto"),
+                            rs.getDouble("valor_total"),
+                            rs.getDouble("valor_liquido"),
+                            rs.getString("observacoes"),
+                            ts != null ? ts.toLocalDateTime() : LocalDateTime.now()
+                    );
+                    int cId = rs.getInt("cliente_id");
+                    if (!rs.wasNull()) v.setClienteId(cId);
+                    v.setClienteNome(rs.getString("cliente_nome"));
+                    v.setClienteCpf(rs.getString("cliente_cpf"));
+                    v.setItens(obterItensVenda(id));
+                    v.setPagamentos(obterPagamentosVenda(id));
+                    return v;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[ERRO DB] Falha ao buscar venda por ID #" + id + ": " + e.getMessage());
+        }
+        return null;
+    }
+
+    public List<VendaPDV> listarVendasPorCpf(String cpf) {
+        List<VendaPDV> lista = new ArrayList<>();
+        if (cpf == null || cpf.trim().isEmpty()) return lista;
+        String limpo = cpf.replaceAll("[^0-9]", "");
+        String sql = "SELECT id, subtotal, desconto, valor_total, valor_liquido, observacoes, data_hora, cliente_id, cliente_nome, cliente_cpf FROM venda_pdv " +
+                     "WHERE REPLACE(REPLACE(REPLACE(cliente_cpf, '.', ''), '-', ''), '/', '') = ? OR cliente_cpf = ? ORDER BY id DESC";
+        try (Connection conn = ConnectionFactory.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, limpo.isEmpty() ? cpf.trim() : limpo);
+            stmt.setString(2, cpf.trim());
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    java.sql.Timestamp ts = rs.getTimestamp("data_hora");
+                    VendaPDV v = new VendaPDV(
+                            rs.getInt("id"),
+                            rs.getDouble("subtotal"),
+                            rs.getDouble("desconto"),
+                            rs.getDouble("valor_total"),
+                            rs.getDouble("valor_liquido"),
+                            rs.getString("observacoes"),
+                            ts != null ? ts.toLocalDateTime() : LocalDateTime.now()
+                    );
+                    int cId = rs.getInt("cliente_id");
+                    if (!rs.wasNull()) v.setClienteId(cId);
+                    v.setClienteNome(rs.getString("cliente_nome"));
+                    v.setClienteCpf(rs.getString("cliente_cpf"));
+                    lista.add(v);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[ERRO DB] Falha ao buscar vendas por CPF: " + e.getMessage());
         }
         return lista;
     }

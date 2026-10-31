@@ -203,7 +203,7 @@ public class CaixaPanel extends JPanel {
         JPanel pnlAcoesHist = new JPanel(new FlowLayout(FlowLayout.RIGHT, UITheme.SPACE_8, 0));
         pnlAcoesHist.setOpaque(false);
         JButton btnVerDetalhes = UIComponents.criarBotaoSecundario("Ver Extrato Completo");
-        JButton btnReimprimirCupom = UIComponents.criarBotaoSecundario("Imprimir Cupom 80mm");
+        JButton btnReimprimirCupom = UIComponents.criarBotaoSecundario("🖨️ Imprimir Cupom [58/80mm]");
         JButton btnReenviarWhats = UIComponents.criarBotaoSecundario("Enviar no WhatsApp");
         JButton btnAtualizarHist = UIComponents.criarBotaoSecundario("Atualizar Histórico");
 
@@ -396,13 +396,15 @@ public class CaixaPanel extends JPanel {
             return;
 
         String nomeLoja = caixaDAO.obterConfig("nome_loja", "Assistência Técnica & Gestão Pro");
-        String textoCupom = CupomTermicoService.gerarTextoCupomFechamento(s, nomeLoja, true);
+        String largConfig = caixaDAO.obterConfig("largura_cupom_mm", "80");
+        boolean is80mm = !"58".equals(largConfig);
+        String textoCupom = CupomTermicoService.gerarTextoCupomFechamento(s, nomeLoja, is80mm);
 
         JTextArea area = new JTextArea(textoCupom, 25, 55);
         area.setFont(new Font("Monospaced", Font.PLAIN, 12));
         area.setEditable(false);
 
-        JOptionPane.showMessageDialog(this, new JScrollPane(area), "Extrato de Fechamento - Turno #" + s.getId(),
+        JOptionPane.showMessageDialog(this, new JScrollPane(area), "Extrato de Fechamento - Turno #" + s.getId() + " (" + (is80mm ? "80mm" : "58mm") + ")",
                 JOptionPane.PLAIN_MESSAGE);
     }
 
@@ -412,8 +414,10 @@ public class CaixaPanel extends JPanel {
             return;
 
         String nomeLoja = caixaDAO.obterConfig("nome_loja", "Assistência Técnica & Gestão Pro");
-        String textoCupom = CupomTermicoService.gerarTextoCupomFechamento(s, nomeLoja, true);
-        CupomTermicoService.imprimirCupom(textoCupom, this);
+        String largConfig = caixaDAO.obterConfig("largura_cupom_mm", "80");
+        boolean is80mm = !"58".equals(largConfig);
+        String textoCupom = CupomTermicoService.gerarTextoCupomFechamento(s, nomeLoja, is80mm);
+        CupomTermicoService.imprimirCupomTermico(textoCupom, "Fechamento Turno #" + s.getId(), this, is80mm, true);
     }
 
     private void reenviarWhatsAppSelecionado() {

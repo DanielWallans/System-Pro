@@ -81,6 +81,18 @@ public class ComprovanteVendaDialog extends JDialog {
         } catch (Exception ignored) {}
 
         if (caixaDAO != null) {
+            if ("SYSTEM PRO - GESTÃO".equals(nomeLoja)) {
+                nomeLoja = caixaDAO.obterConfig("nome_loja", "SYSTEM PRO - GESTÃO");
+            }
+            if (cnpjLoja.isEmpty()) {
+                cnpjLoja = caixaDAO.obterConfig("cnpj_loja", "");
+            }
+            if (telefoneLoja.isEmpty()) {
+                telefoneLoja = caixaDAO.obterConfig("telefone_loja", "");
+            }
+            if (enderecoLoja.isEmpty()) {
+                enderecoLoja = caixaDAO.obterConfig("endereco_loja", "");
+            }
             try {
                 CaixaSessao s = caixaDAO.obterSessaoAberta();
                 if (s != null) {
@@ -93,6 +105,10 @@ public class ComprovanteVendaDialog extends JDialog {
     private void initComponents() {
         setLayout(new BorderLayout(0, 10));
         ThemeTokens t = UITheme.tokens();
+
+        // Determina largura padrão salva nas preferências (80mm ou 58mm)
+        String largConfig = caixaDAO != null ? caixaDAO.obterConfig("largura_cupom_mm", "80") : "80";
+        boolean padrao80 = !"58".equals(largConfig);
 
         // --- TOPO: Título e Seleção de Largura (80mm / 58mm) ---
         JPanel pnlTopo = new JPanel(new BorderLayout(10, 0));
@@ -115,11 +131,11 @@ public class ComprovanteVendaDialog extends JDialog {
 
         JPanel pnlLargura = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         pnlLargura.setOpaque(false);
-        rb80mm = new JRadioButton("Bobina 80mm", true);
+        rb80mm = new JRadioButton("Bobina 80mm", padrao80);
         rb80mm.setFont(UITheme.FONT_CAPTION);
         rb80mm.setOpaque(false);
 
-        rb58mm = new JRadioButton("Bobina 58mm (Mini)");
+        rb58mm = new JRadioButton("Bobina 58mm (Mini)", !padrao80);
         rb58mm.setFont(UITheme.FONT_CAPTION);
         rb58mm.setOpaque(false);
 
@@ -223,9 +239,19 @@ public class ComprovanteVendaDialog extends JDialog {
     }
 
     private void enviarWhatsApp() {
-        String fone = JOptionPane.showInputDialog(this,
+        String fonePadrao = "";
+        if (venda != null && venda.getClienteId() != null && venda.getClienteId() > 0) {
+            try {
+                com.loja.model.Cliente c = new com.loja.repository.ClienteDAO().buscarPorId(venda.getClienteId());
+                if (c != null && c.getTelefone() != null) {
+                    fonePadrao = c.getTelefone();
+                }
+            } catch (Exception ignored) {}
+        }
+
+        String fone = (String) JOptionPane.showInputDialog(this,
                 "Informe o número de WhatsApp do cliente com DDD (ex: 11999998888):",
-                "WhatsApp do Cliente", JOptionPane.QUESTION_MESSAGE);
+                "WhatsApp do Cliente", JOptionPane.QUESTION_MESSAGE, null, null, fonePadrao);
         if (fone != null && !fone.trim().isEmpty()) {
             String foneLimpo = fone.replaceAll("[^0-9]", "");
             if (foneLimpo.length() == 10 || foneLimpo.length() == 11) {
@@ -235,7 +261,14 @@ public class ComprovanteVendaDialog extends JDialog {
             StringBuilder msg = new StringBuilder();
             msg.append("Olá! Segue o comprovante da sua compra na *").append(nomeLoja).append("*:\n\n");
             msg.append("🛍️ *Venda Nº:* #").append(venda.getId()).append("\n");
+            if (venda.getClienteNome() != null && !venda.getClienteNome().trim().isEmpty()) {
+                msg.append("👤 *Cliente:* ").append(venda.getClienteNome().trim()).append("\n");
+            }
+            if (venda.getClienteCpf() != null && !venda.getClienteCpf().trim().isEmpty()) {
+                msg.append("📄 *CPF/CNPJ:* ").append(venda.getClienteCpf().trim()).append("\n");
+            }
             msg.append("💰 *Total Pago:* R$ ").append(String.format("%.2f", venda.getValorTotal())).append("\n\n");
+            msg.append("🛡️ *Garantia:* 90 dias com apresentação deste comprovante.\n");
             msg.append("Agradecemos a sua preferência! Volte sempre!");
 
             try {

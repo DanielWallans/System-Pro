@@ -43,7 +43,7 @@ public class AberturaCaixaDialog extends JDialog {
         setLayout(new BorderLayout());
 
         initComponents();
-    }
+    } 
 
     private void initComponents() {
         // 1. Cabeçalho

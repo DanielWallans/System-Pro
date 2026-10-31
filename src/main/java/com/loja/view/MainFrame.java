@@ -19,6 +19,9 @@ import com.loja.view.theme.UITheme;
 import com.loja.service.update.UpdateInfo;
 import com.loja.service.update.UpdateService;
 import com.loja.service.TerminalService;
+import com.loja.model.CaixaSessao;
+import com.loja.view.dialogs.AlertaCaixaAbertoAdminDialog;
+import com.loja.view.dialogs.AlertaEncerramentoDialog;
 import com.loja.view.dialogs.AtualizacaoDialog;
 
 import javax.swing.*;
@@ -36,6 +39,7 @@ public class MainFrame extends JFrame {
     private final CaixaDAO caixaDAO;
     private final CaixaService caixaService;
     private final UsuarioDAO usuarioDAO;
+    private final FinanceiroDAO financeiroDAO;
     private final boolean dbConectado;
 
     private CardLayout cardLayout;
@@ -51,6 +55,7 @@ public class MainFrame extends JFrame {
     private PDVPanel pdvPanel;
     private EstoquePanel estoquePanel;
     private CaixaPanel caixaPanel;
+    private FinanceiroPanel financeiroPanel;
     private TerminaisPanel terminaisPanel;
 
     private JLabel lblUsuarioLogado;
@@ -77,14 +82,14 @@ public class MainFrame extends JFrame {
         this.caixaDAO = caixaDAO;
         this.caixaService = caixaService;
         this.usuarioDAO = usuarioDAO != null ? usuarioDAO : new UsuarioDAO();
+        this.financeiroDAO = new FinanceiroDAO();
         this.dbConectado = dbConectado;
 
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent e) {
-                TerminalService.getInstance().encerrarSessao();
-                com.loja.service.AutoBackupService.getInstance().executarBackupAoEncerrar(MainFrame.this);
+                confirmarEncerramentoSistema();
             }
         });
         setSize(1240, 790);
@@ -98,6 +103,8 @@ public class MainFrame extends JFrame {
         iniciarVerificacaoAtualizacaoSilenciosa();
         UpdateService.sincronizarVersaoComBancoSeNecessario();
         verificarLembreteBackupInicial();
+        verificarAlertaEstoqueInicial();
+        verificarAlertaCaixaAbertoInicial();
 
         TerminalService.getInstance().setJanelaPrincipal(this);
         TerminalService.getInstance().setCallbackLogoutRemoto(this::executarLogoutRemoto);
@@ -244,6 +251,7 @@ public class MainFrame extends JFrame {
         osPanel = new OrdemServicoPanel(this, osDAO, clienteDAO, equipDAO, produtoDAO, caixaService);
         estoquePanel = new EstoquePanel(this, produtoDAO);
         caixaPanel = new CaixaPanel(this, caixaService, caixaDAO);
+        financeiroPanel = new FinanceiroPanel(this, financeiroDAO, caixaDAO);
         terminaisPanel = new TerminaisPanel(this, new TerminalDAO());
 
         cardsPanel.add(dashboardPanel, "DASHBOARD");
@@ -253,6 +261,7 @@ public class MainFrame extends JFrame {
         cardsPanel.add(osPanel, "OS");
         cardsPanel.add(estoquePanel, "ESTOQUE");
         cardsPanel.add(caixaPanel, "CAIXA");
+        cardsPanel.add(financeiroPanel, "FINANCEIRO");
         cardsPanel.add(terminaisPanel, "TERMINAIS");
 
         add(cardsPanel, BorderLayout.CENTER);
@@ -314,7 +323,9 @@ public class MainFrame extends JFrame {
             sidebar.add(Box.createVerticalStrut(4));
             adicionarBotaoNavegacao(sidebar, "Estoque de Peças", "ESTOQUE");
             sidebar.add(Box.createVerticalStrut(4));
-            adicionarBotaoNavegacao(sidebar, "Caixa & Finanças", "CAIXA");
+            adicionarBotaoNavegacao(sidebar, "Caixa & Turno", "CAIXA");
+            sidebar.add(Box.createVerticalStrut(4));
+            adicionarBotaoNavegacao(sidebar, "Gestão Financeira & Lucro", "FINANCEIRO");
             sidebar.add(Box.createVerticalStrut(4));
             adicionarBotaoNavegacao(sidebar, "Terminais da Rede", "TERMINAIS");
             selecionarAba("DASHBOARD");
@@ -476,6 +487,7 @@ public class MainFrame extends JFrame {
         osPanel = new OrdemServicoPanel(this, osDAO, clienteDAO, equipDAO, produtoDAO, caixaService);
         estoquePanel = new EstoquePanel(this, produtoDAO);
         caixaPanel = new CaixaPanel(this, caixaService, caixaDAO);
+        financeiroPanel = new FinanceiroPanel(this, financeiroDAO, caixaDAO);
         terminaisPanel = new TerminaisPanel(this, new TerminalDAO());
 
         cardsPanel.add(dashboardPanel, "DASHBOARD");
@@ -485,6 +497,7 @@ public class MainFrame extends JFrame {
         cardsPanel.add(osPanel, "OS");
         cardsPanel.add(estoquePanel, "ESTOQUE");
         cardsPanel.add(caixaPanel, "CAIXA");
+        cardsPanel.add(financeiroPanel, "FINANCEIRO");
         cardsPanel.add(terminaisPanel, "TERMINAIS");
 
         if (osPanel != null) {
@@ -518,6 +531,9 @@ public class MainFrame extends JFrame {
         caixaPanel.recarregarDados();
         pdvPanel.atualizarStatusCaixa();
         pdvPanel.recarregarVitrineProdutos();
+        if (financeiroPanel != null && "FINANCEIRO".equals(abaAtiva)) {
+            financeiroPanel.recarregarDados();
+        }
         if (terminaisPanel != null && "TERMINAIS".equals(abaAtiva)) {
             terminaisPanel.recarregarDados();
         }
@@ -812,6 +828,75 @@ public class MainFrame extends JFrame {
                     LembreteBackupDialog dlg = new LembreteBackupDialog(MainFrame.this);
                     dlg.setVisible(true);
                 }
+            }
+        });
+        timer.setRepeats(false);
+        timer.start();
+    }
+
+    private void verificarAlertaEstoqueInicial() {
+        Timer timer = new Timer(2500, e -> {
+            try {
+                if (produtoDAO != null) {
+                    java.util.List<com.loja.model.Produto> zerados = produtoDAO.buscarProdutosComEstoqueZerado();
+                    if (zerados != null && !zerados.isEmpty()) {
+                        com.loja.view.dialogs.AlertaEstoqueZeradoDialog dlg = 
+                                new com.loja.view.dialogs.AlertaEstoqueZeradoDialog(MainFrame.this, zerados, () -> {
+                            selecionarAba("ESTOQUE");
+                        });
+                        dlg.setVisible(true);
+                    }
+                }
+            } catch (Exception ex) {
+                System.err.println("[AVISO] Falha ao verificar alerta de estoque inicial: " + ex.getMessage());
+            }
+        });
+        timer.setRepeats(false);
+        timer.start();
+    }
+
+    private void confirmarEncerramentoSistema() {
+        CaixaSessao sessaoAberta = (caixaDAO != null) ? caixaDAO.obterSessaoAberta() : null;
+        boolean backupFeitoHoje = AutoBackupService.getInstance().isBackupRealizadoHoje();
+
+        if (sessaoAberta != null || !backupFeitoHoje) {
+            AlertaEncerramentoDialog dlg = new AlertaEncerramentoDialog(
+                    this, caixaDAO, caixaService, sessaoAberta, backupFeitoHoje);
+            dlg.setVisible(true);
+
+            if (dlg.isConfirmarSaida()) {
+                executarFechamentoCompleto();
+            }
+        } else {
+            int opt = JOptionPane.showConfirmDialog(this,
+                    "Deseja realmente sair e encerrar o sistema?",
+                    "Encerrar Sistema", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+            if (opt == JOptionPane.YES_OPTION) {
+                executarFechamentoCompleto();
+            }
+        }
+    }
+
+    private void executarFechamentoCompleto() {
+        TerminalService.getInstance().encerrarSessao();
+        com.loja.service.AutoBackupService.getInstance().executarBackupAoEncerrar(MainFrame.this);
+    }
+
+    private void verificarAlertaCaixaAbertoInicial() {
+        Timer timer = new Timer(1800, e -> {
+            try {
+                Usuario user = SessaoUsuario.getInstancia().getUsuarioLogado();
+                boolean isAdmin = (user == null || user.isAdmin());
+                if (isAdmin && caixaDAO != null) {
+                    CaixaSessao sessao = caixaDAO.obterSessaoAberta();
+                    if (sessao != null) {
+                        AlertaCaixaAbertoAdminDialog dlg = new AlertaCaixaAbertoAdminDialog(
+                                MainFrame.this, caixaDAO, caixaService, sessao);
+                        dlg.setVisible(true);
+                    }
+                }
+            } catch (Exception ex) {
+                System.err.println("[AVISO] Falha ao verificar caixa aberto inicial: " + ex.getMessage());
             }
         });
         timer.setRepeats(false);

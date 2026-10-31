@@ -28,6 +28,8 @@ public class ProdutoDialog extends JDialog {
     private JTextField txtPrecoVenda;
     private JLabel lblCalculoMargem;
     private JSpinner spEstoque;
+    private JSpinner spEstoqueMinimo;
+    private JTextField txtLocalizacao;
 
     // Aba 2: Fiscal & SEFAZ
     private JTextField txtNcm;
@@ -51,8 +53,8 @@ public class ProdutoDialog extends JDialog {
             recalcularMargem();
         }
 
-        setSize(560, 480);
-        setMinimumSize(new Dimension(520, 440));
+        setSize(580, 540);
+        setMinimumSize(new Dimension(540, 500));
         setLocationRelativeTo(owner);
     }
 
@@ -99,6 +101,13 @@ public class ProdutoDialog extends JDialog {
         spEstoque = new JSpinner(new SpinnerNumberModel(1, 0, 99999, 1));
         spEstoque.setFont(UITheme.FONT_BODY);
 
+        spEstoqueMinimo = new JSpinner(new SpinnerNumberModel(2, 0, 99999, 1));
+        spEstoqueMinimo.setFont(UITheme.FONT_BODY);
+        spEstoqueMinimo.setToolTipText("Limite mínimo para aviso de estoque baixo e sugestão de compras");
+
+        txtLocalizacao = new JTextField(18);
+        txtLocalizacao.putClientProperty("JTextField.placeholderText", "Ex: Gaveteiro B - Gaveta 03, Prateleira 2");
+
         adicionarLinhaForm(pnlComercial, gbc, 0, "Código / ID:", txtId);
         adicionarLinhaForm(pnlComercial, gbc, 1, "Código de Barras (EAN/GTIN):", txtCodigoBarras);
         adicionarLinhaForm(pnlComercial, gbc, 2, "Nome / Descrição *:", txtNome);
@@ -106,7 +115,9 @@ public class ProdutoDialog extends JDialog {
         adicionarLinhaForm(pnlComercial, gbc, 4, "Preço de Custo (R$):", txtPrecoCusto);
         adicionarLinhaForm(pnlComercial, gbc, 5, "Preço de Venda (R$) *:", txtPrecoVenda);
         adicionarLinhaForm(pnlComercial, gbc, 6, "Rentabilidade Estimada:", lblCalculoMargem);
-        adicionarLinhaForm(pnlComercial, gbc, 7, "Qtd Inicial em Estoque:", spEstoque);
+        adicionarLinhaForm(pnlComercial, gbc, 7, "Qtd Atual em Estoque:", spEstoque);
+        adicionarLinhaForm(pnlComercial, gbc, 8, "Estoque Mínimo (Alerta):", spEstoqueMinimo);
+        adicionarLinhaForm(pnlComercial, gbc, 9, "Localização / Gaveteiro:", txtLocalizacao);
 
         tabbedPane.addTab("📦 Geral & Preços", pnlComercial);
 
@@ -227,6 +238,8 @@ public class ProdutoDialog extends JDialog {
         txtPrecoCusto.setText(String.format("%.2f", p.getPrecoCusto()).replace(",", "."));
         txtPrecoVenda.setText(String.format("%.2f", p.getPreco()).replace(",", "."));
         spEstoque.setValue(p.getEstoque());
+        spEstoqueMinimo.setValue(p.getEstoqueMinimo());
+        txtLocalizacao.setText(p.getLocalizacao() != null ? p.getLocalizacao() : "");
 
         txtNcm.setText(p.getNcm() != null ? p.getNcm() : "");
         txtCest.setText(p.getCest() != null ? p.getCest() : "");
@@ -290,6 +303,8 @@ public class ProdutoDialog extends JDialog {
         String codBarras = txtCodigoBarras.getText().trim();
         String unidade = (String) cbUnidade.getSelectedItem();
         int estoque = (Integer) spEstoque.getValue();
+        int estoqueMinimo = (Integer) spEstoqueMinimo.getValue();
+        String localizacao = txtLocalizacao.getText().trim();
 
         // Dados Fiscais
         String ncm = FiscalUtils.apenasNumeros(txtNcm.getText().trim());
@@ -319,7 +334,7 @@ public class ProdutoDialog extends JDialog {
         String csosnSelecionado = (String) cbCsosn.getSelectedItem();
         String csosn = (csosnSelecionado != null && csosnSelecionado.length() >= 3) ? csosnSelecionado.substring(0, 3) : "102";
 
-        Produto p = new Produto(id, codBarras, nome, precoCusto, precoVenda, estoque, ncm, cest, cfop, origem, csosn, unidade);
+        Produto p = new Produto(id, codBarras, nome, precoCusto, precoVenda, estoque, estoqueMinimo, localizacao, ncm, cest, cfop, origem, csosn, unidade);
 
         if (produtoDAO.salvar(p)) {
             this.salvo = true;

@@ -16,7 +16,7 @@ import com.loja.model.ServicoItem;
 public class OrdemServicoDAO {
 
     public boolean abrirOS(OrdemServico os) {
-        String sql = "INSERT INTO ordem_servico (cliente_id, equipamento_id, problema_relatado, status, valor_servico, valor_total, checklist_entrada, observacoes_finais, data_entrada) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO ordem_servico (cliente_id, equipamento_id, problema_relatado, status, valor_servico, valor_total, checklist_entrada, observacoes_finais, data_entrada, tipo_atendimento, endereco_externo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = ConnectionFactory.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             stmt.setInt(1, os.getClienteId());
@@ -28,6 +28,8 @@ public class OrdemServicoDAO {
             stmt.setString(7, os.getChecklistEntrada());
             stmt.setString(8, os.getObservacoesFinais());
             stmt.setTimestamp(9, java.sql.Timestamp.valueOf(os.getDataEntrada()));
+            stmt.setString(10, os.getTipoAtendimento());
+            stmt.setString(11, os.getEnderecoExterno());
             int rows = stmt.executeUpdate();
             if (rows > 0) {
                 try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
@@ -73,9 +75,36 @@ public class OrdemServicoDAO {
 
                 // 2. Baixar do estoque se ID for de produto real
                 if (produtoId > 0) {
+                    int saldoAnterior = 0;
+                    String nomeProd = "Peça OS #" + osId;
+                    try (PreparedStatement stmtProd = conn.prepareStatement("SELECT nome, estoque FROM produto WHERE id = ?")) {
+                        stmtProd.setInt(1, produtoId);
+                        try (ResultSet rs = stmtProd.executeQuery()) {
+                            if (rs.next()) {
+                                nomeProd = rs.getString("nome");
+                                saldoAnterior = rs.getInt("estoque");
+                            }
+                        }
+                    }
+                    int saldoPosterior = saldoAnterior - quantidade;
+
                     stmtBaixa.setInt(1, quantidade);
                     stmtBaixa.setInt(2, produtoId);
                     stmtBaixa.executeUpdate();
+
+                    EstoqueMovimentoDAO.registrarMovimentoConexao(
+                        conn,
+                        produtoId,
+                        nomeProd,
+                        "SAIDA",
+                        quantidade,
+                        saldoAnterior,
+                        saldoPosterior,
+                        "ORDEM_SERVICO",
+                        "OS #" + osId,
+                        "Sistema",
+                        "Consumo de peça na Ordem de Serviço #" + osId
+                    );
                 }
 
                 // 3. Atualizar valor total da OS
@@ -299,6 +328,19 @@ public class OrdemServicoDAO {
             while (rs.next()) {
                 java.sql.Timestamp entrada = rs.getTimestamp("data_entrada");
                 java.sql.Timestamp saida = rs.getTimestamp("data_saida");
+                String tipoAtendimento = "BALCAO";
+                String enderecoExterno = "";
+                try {
+                    tipoAtendimento = rs.getString("tipo_atendimento");
+                    if (tipoAtendimento == null || tipoAtendimento.trim().isEmpty()) {
+                        tipoAtendimento = "BALCAO";
+                    }
+                } catch (Exception ignored) {}
+                try {
+                    enderecoExterno = rs.getString("endereco_externo");
+                    if (enderecoExterno == null) enderecoExterno = "";
+                } catch (Exception ignored) {}
+
                 lista.add(new OrdemServico(
                         rs.getInt("id"),
                         rs.getInt("cliente_id"),
@@ -310,6 +352,8 @@ public class OrdemServicoDAO {
                         rs.getDouble("valor_total"),
                         rs.getString("checklist_entrada"),
                         rs.getString("observacoes_finais"),
+                        tipoAtendimento,
+                        enderecoExterno,
                         entrada != null ? entrada.toLocalDateTime() : null,
                         saida != null ? saida.toLocalDateTime() : null
                 ));
@@ -329,6 +373,19 @@ public class OrdemServicoDAO {
                 if (rs.next()) {
                     java.sql.Timestamp entrada = rs.getTimestamp("data_entrada");
                     java.sql.Timestamp saida = rs.getTimestamp("data_saida");
+                    String tipoAtendimento = "BALCAO";
+                    String enderecoExterno = "";
+                    try {
+                        tipoAtendimento = rs.getString("tipo_atendimento");
+                        if (tipoAtendimento == null || tipoAtendimento.trim().isEmpty()) {
+                            tipoAtendimento = "BALCAO";
+                        }
+                    } catch (Exception ignored) {}
+                    try {
+                        enderecoExterno = rs.getString("endereco_externo");
+                        if (enderecoExterno == null) enderecoExterno = "";
+                    } catch (Exception ignored) {}
+
                     return new OrdemServico(
                             rs.getInt("id"),
                             rs.getInt("cliente_id"),
@@ -340,6 +397,8 @@ public class OrdemServicoDAO {
                             rs.getDouble("valor_total"),
                             rs.getString("checklist_entrada"),
                             rs.getString("observacoes_finais"),
+                            tipoAtendimento,
+                            enderecoExterno,
                             entrada != null ? entrada.toLocalDateTime() : null,
                             saida != null ? saida.toLocalDateTime() : null
                     );

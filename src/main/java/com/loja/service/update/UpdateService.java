@@ -454,13 +454,9 @@ public class UpdateService {
     public static File localizarArquivoJarAtual() {
         File baseDir = getAppDirectory();
         File[] candidatos = new File[] {
-                new File(baseDir, "SistemaLoja.jar"),
                 new File(baseDir, "SystemPro.jar"),
-                new File(baseDir, "aplicacao_pronta/SistemaLoja.jar"),
-                new File("gerador_executavel/aplicacao_pronta/SistemaLoja.jar"),
-                new File("gerador_executavel/aplicacao_pronta/SystemPro.jar"),
-                new File("target/SistemaLoja.jar"),
-                new File("dist/SistemaLoja.jar")
+                new File(baseDir, "SistemaLoja.jar"),
+                new File("target/SystemPro-1.0-SNAPSHOT.jar")
         };
         for (File f : candidatos) {
             if (f.exists() && f.length() > 500_000) {
@@ -473,8 +469,7 @@ public class UpdateService {
     public static String carregarNovidadesVersaoAtual() {
         File[] candidatos = new File[] {
                 new File("versao.json"),
-                new File(getAppDirectory(), "versao.json"),
-                new File("gerador_executavel/aplicacao_pronta/versao.json")
+                new File(getAppDirectory(), "versao.json")
         };
         for (File f : candidatos) {
             if (f.exists()) {
@@ -494,8 +489,7 @@ public class UpdateService {
     public static String carregarDataVersaoAtual() {
         File[] candidatos = new File[] {
                 new File("versao.json"),
-                new File(getAppDirectory(), "versao.json"),
-                new File("gerador_executavel/aplicacao_pronta/versao.json")
+                new File(getAppDirectory(), "versao.json")
         };
         for (File f : candidatos) {
             if (f.exists()) {

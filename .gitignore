@@ -2,17 +2,14 @@ target/
 dist/
 build/
 *.jar
-!gerador_executavel/aplicacao_pronta/SistemaLoja.jar
-!gerador_executavel/aplicacao_pronta/SystemPro.jar
+!lib/*.jar
 *.db
 *.exe
-!gerador_executavel/aplicacao_pronta/SistemaLoja.exe
-!gerador_executavel/aplicacao_pronta/SystemPro.exe
 node_modules/
 sources.txt
-gerador_executavel/aplicacao_pronta/jre/
-gerador_executavel/instalador/
-gerador_executavel/staging/
+stderr.txt
+stdout.txt
+*.zip
 
 ### IntelliJ IDEA ###
 .idea/
@@ -38,7 +35,7 @@ gerador_executavel/staging/
 ### VS Code ###
 .vscode/
 
-### Mac OS / Windows ###
+### Sistema Operacional ###
 .DS_Store
 Thumbs.db
 .teste_perm

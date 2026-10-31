@@ -100,10 +100,14 @@ public class ClienteDAO {
 
     public Cliente buscarPorCpf(String cpf) {
         if (cpf == null || cpf.trim().isEmpty()) return null;
-        String sql = "SELECT * FROM cliente WHERE cpf_cnpj = ?";
+        String limpo = cpf.replaceAll("[^0-9]", "");
+        String sql = "SELECT * FROM cliente WHERE " +
+                     "REPLACE(REPLACE(REPLACE(REPLACE(cpf_cnpj, '.', ''), '-', ''), '/', ''), ' ', '') = ? " +
+                     "OR cpf_cnpj = ? LIMIT 1";
         try (Connection conn = ConnectionFactory.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, cpf.trim());
+            stmt.setString(1, limpo.isEmpty() ? cpf.trim() : limpo);
+            stmt.setString(2, cpf.trim());
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     return new Cliente(

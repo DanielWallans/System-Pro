@@ -1,7 +1,10 @@
 package com.loja.view.dialogs;
-
+ 
+import com.loja.model.Cliente;
 import com.loja.model.PagamentoItem;
 import com.loja.repository.CaixaDAO;
+import com.loja.repository.ClienteDAO;
+import com.loja.util.FiscalUtils;
 import com.loja.view.theme.ThemeTokens;
 import com.loja.view.theme.UIComponents;
 import com.loja.view.theme.UITheme;
@@ -10,6 +13,8 @@ import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +24,14 @@ public class PagamentoPDVDialog extends JDialog {
     private final CaixaDAO caixaDAO;
     private final List<PagamentoItem> pagamentos = new ArrayList<>();
     private boolean confirmado = false;
+
+    // Componentes de Identificação do Consumidor / CPF no Cupom (Opcional)
+    private JTextField txtCpfCliente;
+    private JTextField txtNomeCliente;
+    private JLabel lblStatusCliente;
+    private JButton btnBuscarCliente;
+    private JButton btnLimparCliente;
+    private Integer clienteId = null;
 
     // Componentes de Totais
     private JLabel lblTotalCompra;
@@ -43,22 +56,40 @@ public class PagamentoPDVDialog extends JDialog {
     private Map<String, Double> taxasMaquininha;
 
     public PagamentoPDVDialog(Frame owner, double totalPagarOriginal, CaixaDAO caixaDAO) {
-        this((Window) owner, totalPagarOriginal, caixaDAO);
+        this((Window) owner, totalPagarOriginal, caixaDAO, null, null, null);
     }
 
     public PagamentoPDVDialog(Dialog owner, double totalPagarOriginal, CaixaDAO caixaDAO) {
-        this((Window) owner, totalPagarOriginal, caixaDAO);
+        this((Window) owner, totalPagarOriginal, caixaDAO, null, null, null);
     }
 
     public PagamentoPDVDialog(Window owner, double totalPagarOriginal, CaixaDAO caixaDAO) {
+        this(owner, totalPagarOriginal, caixaDAO, null, null, null);
+    }
+
+    public PagamentoPDVDialog(Window owner, double totalPagarOriginal, CaixaDAO caixaDAO, Integer clienteId, String clienteNome, String clienteCpf) {
         super(owner, "Pagamento & Fechamento de Venda", ModalityType.APPLICATION_MODAL);
         this.totalPagarOriginal = totalPagarOriginal;
         this.caixaDAO = caixaDAO;
         this.taxasMaquininha = caixaDAO.obterTaxasMaquininha();
+        this.clienteId = clienteId;
 
         initComponents();
+
+        if (clienteNome != null && !clienteNome.trim().isEmpty()) {
+            txtNomeCliente.setText(clienteNome.trim());
+        }
+        if (clienteCpf != null && !clienteCpf.trim().isEmpty()) {
+            txtCpfCliente.setText(clienteCpf.trim());
+        }
+        if (this.clienteId != null && clienteNome != null) {
+            lblStatusCliente.setText("✓ Cliente vinculado: " + clienteNome.trim() + " (ID #" + this.clienteId + ")");
+            lblStatusCliente.setForeground(UITheme.tokens().getSuccess());
+        }
+
         atualizarTotaisERestante();
-        setSize(880, 690);
+        setSize(900, 740);
+        setMinimumSize(new Dimension(860, 680));
         setLocationRelativeTo(owner);
     }
 
@@ -87,7 +118,11 @@ public class PagamentoPDVDialog extends JDialog {
         pnlTotais.add(criarCardTotalizador("TROCO", lblTroco));
 
         mainPanel.add(pnlTotais);
-        mainPanel.add(Box.createVerticalStrut(12));
+        mainPanel.add(Box.createVerticalStrut(10));
+
+        // 1.1 Identificação do Consumidor • CPF no Cupom (Opcional)
+        mainPanel.add(criarPainelIdentificacaoCliente());
+        mainPanel.add(Box.createVerticalStrut(10));
 
         // 2. Painel de Adição de Forma de Pagamento
         JPanel pnlAddPagamento = new JPanel(new GridBagLayout());
@@ -266,7 +301,7 @@ public class PagamentoPDVDialog extends JDialog {
 
         pnlTabela.add(new JScrollPane(tabela), BorderLayout.CENTER);
         pnlTabela.add(pnlBotoesTabela, BorderLayout.SOUTH);
-        pnlTabela.setPreferredSize(new Dimension(800, 180));
+        pnlTabela.setPreferredSize(new Dimension(800, 150));
 
         mainPanel.add(pnlTabela);
         add(mainPanel, BorderLayout.CENTER);
@@ -285,6 +320,7 @@ public class PagamentoPDVDialog extends JDialog {
         add(bottomPanel, BorderLayout.SOUTH);
 
         atualizarCamposModalidade();
+        configurarAtalhosTeclado();
     }
 
     private JPanel criarCardTotalizador(String titulo, JLabel lblValor) {
@@ -509,5 +545,285 @@ public class PagamentoPDVDialog extends JDialog {
 
     public List<PagamentoItem> getPagamentos() {
         return pagamentos;
+    }
+
+    public Integer getClienteId() {
+        return clienteId;
+    }
+
+    public String getClienteNome() {
+        String nome = txtNomeCliente != null ? txtNomeCliente.getText().trim() : "";
+        return nome.isEmpty() ? null : nome;
+    }
+
+    public String getClienteCpf() {
+        String cpf = txtCpfCliente != null ? txtCpfCliente.getText().trim() : "";
+        return cpf.isEmpty() ? null : cpf;
+    }
+
+    public void setCliente(Integer id, String nome, String cpf) {
+        this.clienteId = id;
+        if (txtNomeCliente != null) txtNomeCliente.setText(nome != null ? nome : "");
+        if (txtCpfCliente != null) txtCpfCliente.setText(cpf != null ? cpf : "");
+        processarBuscaPorCpf();
+    }
+
+    private void configurarAtalhosTeclado() {
+        JRootPane root = getRootPane();
+        InputMap im = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap am = root.getActionMap();
+
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_F2, 0), "buscarClienteF2");
+        am.put("buscarClienteF2", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                abrirBuscaClienteRapida();
+            }
+        });
+
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "fecharPagamentoEsc");
+        am.put("fecharPagamentoEsc", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                dispose();
+            }
+        });
+    }
+
+    private JPanel criarPainelIdentificacaoCliente() {
+        ThemeTokens t = UITheme.tokens();
+        JPanel pnl = new JPanel(new GridBagLayout());
+        pnl.setOpaque(false);
+        pnl.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createTitledBorder(
+                        BorderFactory.createLineBorder(t.getBorderSubtle(), 1),
+                        " 👤 Identificação do Consumidor • CPF no Cupom (Opcional) ",
+                        TitledBorder.LEFT, TitledBorder.TOP,
+                        UITheme.FONT_BODY_BOLD, t.getTextPrimary()),
+                BorderFactory.createEmptyBorder(6, 14, 8, 14)));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(3, 6, 3, 6);
+
+        // CPF
+        JLabel lblCpf = new JLabel("CPF / CNPJ:");
+        lblCpf.setFont(UITheme.FONT_BODY_BOLD);
+        lblCpf.setForeground(t.getTextPrimary());
+
+        txtCpfCliente = new JTextField(12);
+        txtCpfCliente.setFont(UITheme.FONT_BODY);
+        txtCpfCliente.putClientProperty("JTextField.placeholderText", "000.000.000-00 (Opcional)");
+
+        btnBuscarCliente = UIComponents.criarBotaoSecundario("🔍 Buscar [F2]", this::abrirBuscaClienteRapida);
+        btnBuscarCliente.setFont(UITheme.FONT_SMALL);
+        btnBuscarCliente.setPreferredSize(new Dimension(105, 30));
+
+        // Nome
+        JLabel lblNome = new JLabel("Nome do Cliente:");
+        lblNome.setFont(UITheme.FONT_BODY_BOLD);
+        lblNome.setForeground(t.getTextPrimary());
+
+        txtNomeCliente = new JTextField(20);
+        txtNomeCliente.setFont(UITheme.FONT_BODY);
+        txtNomeCliente.putClientProperty("JTextField.placeholderText", "Nome para a notinha (Opcional)");
+
+        btnLimparCliente = UIComponents.criarBotaoSecundario("✖", this::limparCliente);
+        btnLimparCliente.setToolTipText("Limpar identificação do cliente");
+        btnLimparCliente.setPreferredSize(new Dimension(34, 30));
+
+        // Feedback / Dica
+        lblStatusCliente = new JLabel("Dica: Digite o CPF e tecle Enter ou Tab para autocompletar se já for cadastrado.");
+        lblStatusCliente.setFont(UITheme.FONT_SMALL);
+        lblStatusCliente.setForeground(t.getTextSecondary());
+
+        // Eventos no CPF
+        txtCpfCliente.addActionListener(e -> processarBuscaPorCpf());
+        txtCpfCliente.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override
+            public void focusLost(java.awt.event.FocusEvent e) {
+                processarBuscaPorCpf();
+            }
+        });
+
+        // Montagem do GridBag
+        // Linha 0: Rotulo CPF, Caixa CPF + Botão Buscar, Rotulo Nome, Caixa Nome + Botão Limpar
+        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.0;
+        pnl.add(lblCpf, gbc);
+
+        JPanel pnlCpfBox = new JPanel(new BorderLayout(6, 0));
+        pnlCpfBox.setOpaque(false);
+        pnlCpfBox.add(txtCpfCliente, BorderLayout.CENTER);
+        pnlCpfBox.add(btnBuscarCliente, BorderLayout.EAST);
+
+        gbc.gridx = 1; gbc.gridy = 0; gbc.weightx = 0.35;
+        pnl.add(pnlCpfBox, gbc);
+
+        gbc.gridx = 2; gbc.gridy = 0; gbc.weightx = 0.0;
+        pnl.add(lblNome, gbc);
+
+        JPanel pnlNomeBox = new JPanel(new BorderLayout(6, 0));
+        pnlNomeBox.setOpaque(false);
+        pnlNomeBox.add(txtNomeCliente, BorderLayout.CENTER);
+        pnlNomeBox.add(btnLimparCliente, BorderLayout.EAST);
+
+        gbc.gridx = 3; gbc.gridy = 0; gbc.weightx = 0.65;
+        pnl.add(pnlNomeBox, gbc);
+
+        // Linha 1: Linha de Status / Feedback
+        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 4; gbc.weightx = 1.0;
+        pnl.add(lblStatusCliente, gbc);
+
+        return pnl;
+    }
+
+    private void processarBuscaPorCpf() {
+        String texto = txtCpfCliente.getText().trim();
+        if (texto.isEmpty()) {
+            this.clienteId = null;
+            lblStatusCliente.setText("Dica: Digite o CPF e tecle Enter ou Tab para autocompletar se já for cadastrado.");
+            lblStatusCliente.setForeground(UITheme.tokens().getTextSecondary());
+            return;
+        }
+
+        String apenasNum = FiscalUtils.apenasNumeros(texto);
+        if (apenasNum.length() == 11 || apenasNum.length() == 14) {
+            String formatado = FiscalUtils.formatarCpfCnpj(apenasNum);
+            txtCpfCliente.setText(formatado);
+
+            // Tentar localizar cliente cadastrado
+            try {
+                ClienteDAO dao = new ClienteDAO();
+                Cliente c = dao.buscarPorCpf(apenasNum);
+                if (c != null) {
+                    this.clienteId = c.getId();
+                    txtNomeCliente.setText(c.getNome());
+                    lblStatusCliente.setText("✓ Cliente cadastrado localizado: " + c.getNome() + " (ID #" + c.getId() + ")");
+                    lblStatusCliente.setForeground(UITheme.tokens().getSuccess());
+                    return;
+                }
+            } catch (Exception ignored) {}
+
+            this.clienteId = null;
+            lblStatusCliente.setText("● CPF informado (Consumidor avulso • Sairá impresso na notinha para garantia)");
+            lblStatusCliente.setForeground(UITheme.tokens().getTextPrimary());
+        } else {
+            lblStatusCliente.setText("⚠️ O CPF deve ter 11 dígitos ou CNPJ 14 dígitos.");
+            lblStatusCliente.setForeground(UITheme.tokens().getWarning());
+        }
+    }
+
+    private void abrirBuscaClienteRapida() {
+        JDialog dlg = new JDialog(this, "Localizar Cliente Cadastrado • Venda Balcão", true);
+        dlg.setSize(540, 430);
+        dlg.setLocationRelativeTo(this);
+        dlg.setLayout(new BorderLayout(10, 10));
+
+        ThemeTokens t = UITheme.tokens();
+        JPanel pnlTopo = new JPanel(new BorderLayout(8, 8));
+        pnlTopo.setBorder(BorderFactory.createEmptyBorder(12, 14, 8, 14));
+        pnlTopo.setBackground(t.getBgCard());
+
+        JLabel lblDica = new JLabel("Digite o nome ou CPF para filtrar rapidamente:");
+        lblDica.setFont(UITheme.FONT_CAPTION);
+        lblDica.setForeground(t.getTextSecondary());
+
+        JTextField txtBusca = new JTextField();
+        txtBusca.setFont(UITheme.FONT_BODY);
+        txtBusca.putClientProperty("JTextField.placeholderText", "Digite o nome ou CPF do cliente...");
+
+        pnlTopo.add(lblDica, BorderLayout.NORTH);
+        pnlTopo.add(txtBusca, BorderLayout.CENTER);
+        dlg.add(pnlTopo, BorderLayout.NORTH);
+
+        String[] cols = { "ID", "Nome do Cliente", "CPF / CNPJ", "Telefone" };
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable tbl = new JTable(model);
+        UIComponents.formatarTabelaModerna(tbl, -1);
+        tbl.getColumnModel().getColumn(0).setPreferredWidth(50);
+        tbl.getColumnModel().getColumn(1).setPreferredWidth(190);
+        tbl.getColumnModel().getColumn(2).setPreferredWidth(120);
+        tbl.getColumnModel().getColumn(3).setPreferredWidth(110);
+
+        ClienteDAO dao = new ClienteDAO();
+        List<Cliente> todos = dao.buscarTodos();
+
+        Runnable preencher = () -> {
+            model.setRowCount(0);
+            String filtro = txtBusca.getText().trim().toLowerCase();
+            String filtroNum = FiscalUtils.apenasNumeros(filtro);
+            for (Cliente c : todos) {
+                boolean match = filtro.isEmpty() ||
+                        (c.getNome() != null && c.getNome().toLowerCase().contains(filtro)) ||
+                        (!filtroNum.isEmpty() && c.getCpfCnpj() != null && FiscalUtils.apenasNumeros(c.getCpfCnpj()).contains(filtroNum));
+                if (match) {
+                    model.addRow(new Object[] {
+                            "#" + c.getId(),
+                            c.getNome(),
+                            c.getCpfCnpj() != null && !c.getCpfCnpj().isEmpty() ? c.getCpfCnpj() : "-",
+                            c.getTelefone() != null && !c.getTelefone().isEmpty() ? c.getTelefone() : "-"
+                    });
+                }
+            }
+        };
+        preencher.run();
+
+        txtBusca.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { preencher.run(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { preencher.run(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { preencher.run(); }
+        });
+
+        Runnable selecionar = () -> {
+            int row = tbl.getSelectedRow();
+            if (row >= 0) {
+                String idStr = tbl.getValueAt(row, 0).toString().replace("#", "");
+                int id = Integer.parseInt(idStr);
+                for (Cliente c : todos) {
+                    if (c.getId() == id) {
+                        this.clienteId = c.getId();
+                        this.txtNomeCliente.setText(c.getNome());
+                        this.txtCpfCliente.setText(c.getCpfCnpj() != null ? c.getCpfCnpj() : "");
+                        this.lblStatusCliente.setText("✓ Cliente cadastrado: " + c.getNome() + " (ID #" + c.getId() + ")");
+                        this.lblStatusCliente.setForeground(t.getSuccess());
+                        dlg.dispose();
+                        return;
+                    }
+                }
+            }
+        };
+
+        tbl.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2) selecionar.run();
+            }
+        });
+
+        JScrollPane scroll = new JScrollPane(tbl);
+        scroll.setBorder(BorderFactory.createEmptyBorder(0, 14, 0, 14));
+        dlg.add(scroll, BorderLayout.CENTER);
+
+        JPanel pnlRodape = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
+        JButton btnCanc = UIComponents.criarBotaoSecundario("Cancelar", dlg::dispose);
+        JButton btnSel = UIComponents.criarBotaoPrimario("Selecionar Cliente [Enter]", selecionar::run);
+        pnlRodape.add(btnCanc);
+        pnlRodape.add(btnSel);
+        dlg.add(pnlRodape, BorderLayout.SOUTH);
+
+        dlg.getRootPane().setDefaultButton(btnSel);
+        dlg.setVisible(true);
+    }
+
+    private void limparCliente() {
+        this.clienteId = null;
+        if (txtCpfCliente != null) txtCpfCliente.setText("");
+        if (txtNomeCliente != null) txtNomeCliente.setText("");
+        if (lblStatusCliente != null) {
+            lblStatusCliente.setText("Dica: Digite o CPF e tecle Enter ou Tab para autocompletar se já for cadastrado.");
+            lblStatusCliente.setForeground(UITheme.tokens().getTextSecondary());
+        }
+        if (txtCpfCliente != null) txtCpfCliente.requestFocus();
     }
 }

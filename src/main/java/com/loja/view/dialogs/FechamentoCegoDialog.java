@@ -60,8 +60,8 @@ public class FechamentoCegoDialog extends JDialog {
     private boolean fechadoComSucesso = false;
     private final ContagemGaveta contagem = new ContagemGaveta();
 
-    public FechamentoCegoDialog(Frame owner, CaixaService caixaService, CaixaDAO caixaDAO, CaixaSessao sessao) {
-        super(owner, "Conferência Cega & Fechamento de Caixa • Assistente de Turno", true);
+    public FechamentoCegoDialog(Window owner, CaixaService caixaService, CaixaDAO caixaDAO, CaixaSessao sessao) {
+        super(owner, "Conferência Cega & Fechamento de Caixa • Assistente de Turno", ModalityType.APPLICATION_MODAL);
         this.caixaService = caixaService;
         this.caixaDAO = caixaDAO;
         this.sessaoAtual = sessao != null ? sessao : caixaDAO.obterSessaoAberta();
@@ -73,6 +73,14 @@ public class FechamentoCegoDialog extends JDialog {
         setLayout(new BorderLayout());
 
         initComponents();
+    }
+
+    public FechamentoCegoDialog(Dialog owner, CaixaService caixaService, CaixaDAO caixaDAO, CaixaSessao sessao) {
+        this((Window) owner, caixaService, caixaDAO, sessao);
+    }
+
+    public FechamentoCegoDialog(Frame owner, CaixaService caixaService, CaixaDAO caixaDAO, CaixaSessao sessao) {
+        this((Window) owner, caixaService, caixaDAO, sessao);
     }
 
     private void initComponents() {
@@ -115,7 +123,7 @@ public class FechamentoCegoDialog extends JDialog {
         ));
 
         JPanel pnlAcoesExtras = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        btnImprimirCupom = new JButton("Imprimir Cupom 80mm");
+        btnImprimirCupom = new JButton("🖨️ Imprimir Cupom Térmico");
         btnEnviarWhatsApp = new JButton("WhatsApp do Dono");
         btnImprimirCupom.setVisible(false);
         btnEnviarWhatsApp.setVisible(false);
@@ -474,7 +482,9 @@ public class FechamentoCegoDialog extends JDialog {
     private void atualizarPreviaResumo() {
         CaixaSessao s = consolidarDadosSessao();
         String nomeLoja = caixaDAO.obterConfig("nome_loja", "Assistência Técnica & Gestão Pro");
-        String texto = CupomTermicoService.gerarTextoCupomFechamento(s, nomeLoja, true);
+        String largConfig = caixaDAO.obterConfig("largura_cupom_mm", "80");
+        boolean is80mm = !"58".equals(largConfig);
+        String texto = CupomTermicoService.gerarTextoCupomFechamento(s, nomeLoja, is80mm);
         txtPreviaResumo.setText(texto);
         txtPreviaResumo.setCaretPosition(0);
     }
@@ -482,8 +492,10 @@ public class FechamentoCegoDialog extends JDialog {
     private void acaoImprimirCupom() {
         CaixaSessao s = consolidarDadosSessao();
         String nomeLoja = caixaDAO.obterConfig("nome_loja", "Assistência Técnica & Gestão Pro");
-        String texto = CupomTermicoService.gerarTextoCupomFechamento(s, nomeLoja, true);
-        CupomTermicoService.imprimirCupom(texto, this);
+        String largConfig = caixaDAO.obterConfig("largura_cupom_mm", "80");
+        boolean is80mm = !"58".equals(largConfig);
+        String texto = CupomTermicoService.gerarTextoCupomFechamento(s, nomeLoja, is80mm);
+        CupomTermicoService.imprimirCupomTermico(texto, "Fechamento Turno #" + s.getId(), this, is80mm, true);
     }
 
     private void acaoEnviarWhatsApp() {

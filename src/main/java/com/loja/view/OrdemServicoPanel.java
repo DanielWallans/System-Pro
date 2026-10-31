@@ -10,6 +10,7 @@ import com.loja.service.CaixaService;
 import com.loja.service.ComprovanteEntregaPDFService;
 import com.loja.repository.OSFotoDAO;
 import com.loja.view.dialogs.AberturaCaixaDialog;
+import com.loja.view.dialogs.ComprovanteOSDialog;
 import com.loja.view.dialogs.DetalhesOSDialog;
 import com.loja.view.dialogs.GerenciadorFotosOSDialog;
 import com.loja.view.dialogs.MontarOrcamentoDialog;
@@ -45,11 +46,13 @@ public class OrdemServicoPanel extends JPanel {
     private final EquipamentoDAO equipDAO;
     private final ProdutoDAO produtoDAO;
     private final CaixaService caixaService;
+    private final CaixaDAO caixaDAO;
     private final Frame owner;
 
     private JTable tabela;
     private DefaultTableModel tableModel;
     private JComboBox<String> cbFiltroStatus;
+    private JComboBox<String> cbFiltroModalidade;
     private JLabel lblContador;
 
     public OrdemServicoPanel(Frame owner, OrdemServicoDAO osDAO, ClienteDAO clienteDAO,
@@ -60,6 +63,7 @@ public class OrdemServicoPanel extends JPanel {
         this.equipDAO = equipDAO;
         this.produtoDAO = produtoDAO;
         this.caixaService = caixaService;
+        this.caixaDAO = new CaixaDAO();
 
         setLayout(new BorderLayout(0, UITheme.SPACE_16));
         setBorder(BorderFactory.createEmptyBorder(UITheme.SPACE_20, UITheme.SPACE_24, UITheme.SPACE_20,
@@ -106,6 +110,7 @@ public class OrdemServicoPanel extends JPanel {
         this.btnNovaOS = UIComponents.criarBotaoPrimario("+ Abrir Nova OS [F2]", this::abrirNovaOS);
         this.btnMontarOrcamento = UIComponents.criarBotaoSecundario("Montar Orçamento", this::abrirMontarOrcamentoSelecionado);
         this.btnFinalizarOS = UIComponents.criarBotaoPrimario("Finalizar OS [F4]", this::abrirFinalizarOSSelecionada);
+        JButton btnComprovanteTermico = UIComponents.criarBotaoSecundario("🖨️ Cupom Térmico [58/80mm]", this::abrirComprovanteTermicoSelecionada);
         JButton btnDetalhes = UIComponents.criarBotaoSecundario("Ver Detalhes", this::abrirDetalhesOSSelecionada);
         this.btnExcluirOS = UIComponents.criarBotaoSecundario("Excluir OS", this::excluirOSSelecionada);
         this.btnExcluirOS.setToolTipText("Excluir permanentemente a OS selecionada (Apenas Administrador)");
@@ -124,6 +129,20 @@ public class OrdemServicoPanel extends JPanel {
         lblFiltro.setFont(UITheme.FONT_CAPTION);
         lblFiltro.setForeground(t.getTextSecondary());
 
+        JLabel lblModalidade = new JLabel("Tipo:");
+        lblModalidade.setFont(UITheme.FONT_CAPTION);
+        lblModalidade.setForeground(t.getTextSecondary());
+
+        cbFiltroModalidade = new JComboBox<>(new String[] {
+                "Todas Modalidades",
+                "🏢 Balcão / Loja",
+                "🚗 Serviço Externo"
+        });
+        cbFiltroModalidade.setFont(UITheme.FONT_BODY);
+        cbFiltroModalidade.addActionListener(e -> recarregarTabela());
+
+        pnlAcoes.add(lblModalidade);
+        pnlAcoes.add(cbFiltroModalidade);
         pnlAcoes.add(lblFiltro);
         pnlAcoes.add(cbFiltroStatus);
         pnlAcoes.add(btnNovaOS);
@@ -131,6 +150,7 @@ public class OrdemServicoPanel extends JPanel {
         pnlAcoes.add(this.btnFinalizarOS);
         JButton btnFotos = UIComponents.criarBotaoSecundario("Fotos da OS", this::abrirFotosOSSelecionada);
         pnlAcoes.add(btnFotos);
+        pnlAcoes.add(btnComprovanteTermico);
         pnlAcoes.add(btnDetalhes);
         pnlAcoes.add(this.btnExcluirOS);
         pnlAcoes.add(btnAtualizar);
@@ -195,9 +215,20 @@ public class OrdemServicoPanel extends JPanel {
         String filtro = (String) cbFiltroStatus.getSelectedItem();
 
         int contagem = 0;
+        String filtroMod = cbFiltroModalidade != null ? (String) cbFiltroModalidade.getSelectedItem() : "Todas Modalidades";
+
         for (OrdemServico os : lista) {
             if (filtro != null && !filtro.equals("Todos os Status") && !filtro.equalsIgnoreCase(os.getStatus())) {
                 continue;
+            }
+
+            if (filtroMod != null && !filtroMod.startsWith("Todas")) {
+                if (filtroMod.contains("Balcão") && os.isExterno()) {
+                    continue;
+                }
+                if (filtroMod.contains("Externo") && !os.isExterno()) {
+                    continue;
+                }
             }
 
             Cliente c = clienteDAO.buscarPorId(os.getClienteId());
@@ -206,6 +237,10 @@ public class OrdemServicoPanel extends JPanel {
             String nomeCliente = c != null ? c.getNome() : "Cliente #" + os.getClienteId();
             String descEquip = eq != null ? eq.getTipo() + " " + eq.getMarca() + " " + eq.getModelo()
                     : "Equipamento #" + os.getEquipamentoId();
+
+            if (os.isExterno()) {
+                descEquip = "🚗 [EXTERNO] " + descEquip;
+            }
 
             tableModel.addRow(new Object[] {
                     os.getId(),
@@ -399,39 +434,84 @@ public class OrdemServicoPanel extends JPanel {
         }
     }
 
+    private void abrirComprovanteTermicoSelecionada() {
+        int row = tabela.getSelectedRow();
+        if (row < 0) {
+            JOptionPane.showMessageDialog(this,
+                    "Selecione uma Ordem de Serviço na tabela para imprimir o comprovante térmico (58mm/80mm)!",
+                    "Aviso", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int osId = (int) tableModel.getValueAt(row, 0);
+        OrdemServico os = osDAO.buscarPorId(osId);
+        if (os != null) {
+            boolean isEntregue = os.getStatus() != null &&
+                    (os.getStatus().contains("Entregue") || os.getStatus().contains("Finalizado") || os.getStatus().contains("Pronto"));
+            Cliente c = clienteDAO.buscarPorId(os.getClienteId());
+            Equipamento eq = equipDAO.buscarPorId(os.getEquipamentoId());
+            List<ServicoItem> servicos = osDAO.obterServicosOS(os.getId());
+            List<PecaItem> pecas = osDAO.obterPecasItensOS(os.getId());
+            ComprovanteOSDialog dialog = new ComprovanteOSDialog(owner, os, c, eq, servicos, pecas, caixaDAO, !isEntregue);
+            dialog.setVisible(true);
+        }
+    }
+
     private void perguntarComprovanteEntrega(OrdemServico os, Cliente cliente, Equipamento equip) {
-        int optPDF = JOptionPane.showConfirmDialog(owner,
-                "Deseja gerar o Comprovante Oficial de Entrega em PDF agora?",
-                "Comprovante de Entrega", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-        if (optPDF == JOptionPane.YES_OPTION) {
-            JFileChooser fileChooser = new JFileChooser();
-            fileChooser.setDialogTitle("Salvar Comprovante de Entrega em PDF");
-            fileChooser.setSelectedFile(new File("Comprovante_Entrega_OS_" + os.getId() + ".pdf"));
-            if (fileChooser.showSaveDialog(owner) == JFileChooser.APPROVE_OPTION) {
-                File arquivoDestino = fileChooser.getSelectedFile();
-                if (!arquivoDestino.getName().toLowerCase().endsWith(".pdf")) {
-                    arquivoDestino = new File(arquivoDestino.getAbsolutePath() + ".pdf");
+        Object[] opcoes = { "🖨️ Cupom Térmico (58mm / 80mm)", "📄 Documento em PDF (A4)", "Ambos", "Não Imprimir" };
+        int escolha = JOptionPane.showOptionDialog(owner,
+                "OS #" + os.getId() + " finalizada com sucesso!\nDeseja emitir o Comprovante de Entrega e Garantia?",
+                "Emissão de Comprovante de Entrega • OS #" + os.getId(),
+                JOptionPane.YES_NO_CANCEL_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                opcoes,
+                opcoes[0]);
+
+        if (escolha == 0) {
+            abrirComprovanteTermico(os, cliente, equip, false);
+        } else if (escolha == 1) {
+            gerarComprovanteEntregaPDF(os, cliente, equip);
+        } else if (escolha == 2) {
+            abrirComprovanteTermico(os, cliente, equip, false);
+            gerarComprovanteEntregaPDF(os, cliente, equip);
+        }
+    }
+
+    private void abrirComprovanteTermico(OrdemServico os, Cliente cliente, Equipamento equip, boolean modoEntrada) {
+        List<ServicoItem> servicos = osDAO.obterServicosOS(os.getId());
+        List<PecaItem> pecas = osDAO.obterPecasItensOS(os.getId());
+        ComprovanteOSDialog dialog = new ComprovanteOSDialog(owner, os, cliente, equip, servicos, pecas, caixaDAO, modoEntrada);
+        dialog.setVisible(true);
+    }
+
+    private void gerarComprovanteEntregaPDF(OrdemServico os, Cliente cliente, Equipamento equip) {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Salvar Comprovante de Entrega em PDF");
+        fileChooser.setSelectedFile(new File("Comprovante_Entrega_OS_" + os.getId() + ".pdf"));
+        if (fileChooser.showSaveDialog(owner) == JFileChooser.APPROVE_OPTION) {
+            File arquivoDestino = fileChooser.getSelectedFile();
+            if (!arquivoDestino.getName().toLowerCase().endsWith(".pdf")) {
+                arquivoDestino = new File(arquivoDestino.getAbsolutePath() + ".pdf");
+            }
+            try {
+                List<ServicoItem> servicos = osDAO.obterServicosOS(os.getId());
+                if (servicos.isEmpty() && os.getValorServico() > 0) {
+                    servicos.add(new ServicoItem("Mão de Obra Geral / Manutenção", os.getValorServico()));
                 }
-                try {
-                    List<ServicoItem> servicos = osDAO.obterServicosOS(os.getId());
-                    if (servicos.isEmpty() && os.getValorServico() > 0) {
-                        servicos.add(new ServicoItem("Mão de Obra Geral / Manutenção", os.getValorServico()));
-                    }
-                    List<PecaItem> pecas = osDAO.obterPecasItensOS(os.getId());
-                    List<HistoricoOS> historico = osDAO.obterHistoricoOS(os.getId());
-                    ComprovanteEntregaPDFService.gerarComprovanteEntregaPDF(arquivoDestino, os, cliente, equip,
-                            servicos, pecas, historico);
-                    int opt = JOptionPane.showConfirmDialog(owner,
-                            "Comprovante de Entrega gerado com sucesso em:\n" + arquivoDestino.getAbsolutePath()
-                                    + "\n\nDeseja abrir o arquivo agora?",
-                            "PDF Gerado", JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
-                    if (opt == JOptionPane.YES_OPTION && Desktop.isDesktopSupported()) {
-                        Desktop.getDesktop().open(arquivoDestino);
-                    }
-                } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(owner, "Erro ao gerar PDF: " + ex.getMessage(), "Erro",
-                            JOptionPane.ERROR_MESSAGE);
+                List<PecaItem> pecas = osDAO.obterPecasItensOS(os.getId());
+                List<HistoricoOS> historico = osDAO.obterHistoricoOS(os.getId());
+                ComprovanteEntregaPDFService.gerarComprovanteEntregaPDF(arquivoDestino, os, cliente, equip,
+                        servicos, pecas, historico);
+                int opt = JOptionPane.showConfirmDialog(owner,
+                        "Comprovante de Entrega gerado com sucesso em:\n" + arquivoDestino.getAbsolutePath()
+                                + "\n\nDeseja abrir o arquivo agora?",
+                        "PDF Gerado", JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
+                if (opt == JOptionPane.YES_OPTION && Desktop.isDesktopSupported()) {
+                    Desktop.getDesktop().open(arquivoDestino);
                 }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(owner, "Erro ao gerar PDF: " + ex.getMessage(), "Erro",
+                        JOptionPane.ERROR_MESSAGE);
             }
         }
     }

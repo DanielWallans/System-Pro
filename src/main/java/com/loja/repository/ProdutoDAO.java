@@ -12,13 +12,13 @@ import com.loja.model.Produto;
 
 public class ProdutoDAO {
 
-    private static final String SELECT_CAMPOS = "id, codigo_barras, nome, preco_custo, preco, estoque, ncm, cest, cfop, origem, csosn_cst, unidade";
+    private static final String SELECT_CAMPOS = "id, codigo_barras, nome, preco_custo, preco, estoque, estoque_minimo, localizacao, ncm, cest, cfop, origem, csosn_cst, unidade";
 
     public boolean salvar(Produto produto) {
-        String sql = "INSERT INTO produto (id, codigo_barras, nome, preco_custo, preco, estoque, ncm, cest, cfop, origem, csosn_cst, unidade) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+        String sql = "INSERT INTO produto (id, codigo_barras, nome, preco_custo, preco, estoque, estoque_minimo, localizacao, ncm, cest, cfop, origem, csosn_cst, unidade) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
                      "ON DUPLICATE KEY UPDATE codigo_barras = ?, nome = ?, preco_custo = ?, preco = ?, estoque = ?, " +
-                     "ncm = ?, cest = ?, cfop = ?, origem = ?, csosn_cst = ?, unidade = ?";
+                     "estoque_minimo = ?, localizacao = ?, ncm = ?, cest = ?, cfop = ?, origem = ?, csosn_cst = ?, unidade = ?";
 
         try (Connection conn = ConnectionFactory.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -30,28 +30,32 @@ public class ProdutoDAO {
             stmt.setDouble(4, produto.getPrecoCusto());
             stmt.setDouble(5, produto.getPreco());
             stmt.setInt(6, produto.getEstoque());
-            stmt.setString(7, produto.getNcm() != null ? produto.getNcm() : "");
-            stmt.setString(8, produto.getCest() != null ? produto.getCest() : "");
-            stmt.setString(9, produto.getCfop() != null ? produto.getCfop() : "5102");
-            stmt.setInt(10, produto.getOrigem());
-            stmt.setString(11, produto.getCsosnCst() != null ? produto.getCsosnCst() : "102");
-            stmt.setString(12, produto.getUnidade() != null ? produto.getUnidade() : "UN");
+            stmt.setInt(7, produto.getEstoqueMinimo());
+            stmt.setString(8, produto.getLocalizacao() != null ? produto.getLocalizacao() : "");
+            stmt.setString(9, produto.getNcm() != null ? produto.getNcm() : "");
+            stmt.setString(10, produto.getCest() != null ? produto.getCest() : "");
+            stmt.setString(11, produto.getCfop() != null ? produto.getCfop() : "5102");
+            stmt.setInt(12, produto.getOrigem());
+            stmt.setString(13, produto.getCsosnCst() != null ? produto.getCsosnCst() : "102");
+            stmt.setString(14, produto.getUnidade() != null ? produto.getUnidade() : "UN");
 
             // UPDATE
-            stmt.setString(13, produto.getCodigoBarras());
-            stmt.setString(14, produto.getNome());
-            stmt.setDouble(15, produto.getPrecoCusto());
-            stmt.setDouble(16, produto.getPreco());
-            stmt.setInt(17, produto.getEstoque());
-            stmt.setString(18, produto.getNcm() != null ? produto.getNcm() : "");
-            stmt.setString(19, produto.getCest() != null ? produto.getCest() : "");
-            stmt.setString(20, produto.getCfop() != null ? produto.getCfop() : "5102");
-            stmt.setInt(21, produto.getOrigem());
-            stmt.setString(22, produto.getCsosnCst() != null ? produto.getCsosnCst() : "102");
-            stmt.setString(23, produto.getUnidade() != null ? produto.getUnidade() : "UN");
+            stmt.setString(15, produto.getCodigoBarras());
+            stmt.setString(16, produto.getNome());
+            stmt.setDouble(17, produto.getPrecoCusto());
+            stmt.setDouble(18, produto.getPreco());
+            stmt.setInt(19, produto.getEstoque());
+            stmt.setInt(20, produto.getEstoqueMinimo());
+            stmt.setString(21, produto.getLocalizacao() != null ? produto.getLocalizacao() : "");
+            stmt.setString(22, produto.getNcm() != null ? produto.getNcm() : "");
+            stmt.setString(23, produto.getCest() != null ? produto.getCest() : "");
+            stmt.setString(24, produto.getCfop() != null ? produto.getCfop() : "5102");
+            stmt.setInt(25, produto.getOrigem());
+            stmt.setString(26, produto.getCsosnCst() != null ? produto.getCsosnCst() : "102");
+            stmt.setString(27, produto.getUnidade() != null ? produto.getUnidade() : "UN");
 
             stmt.executeUpdate();
-            System.out.println("[DB] Produto salvo/atualizado (fiscal): " + produto.getNome());
+            System.out.println("[DB] Produto salvo/atualizado (fiscal/logístico): " + produto.getNome());
             return true;
 
         } catch (SQLException e) {
@@ -73,6 +77,21 @@ public class ProdutoDAO {
             }
         } catch (SQLException e) {
             System.err.println("[ERRO DB] Falha ao listar produtos: " + e.getMessage());
+        }
+        return produtos;
+    }
+
+    public List<Produto> buscarProdutosComEstoqueZerado() {
+        List<Produto> produtos = new ArrayList<>();
+        String sql = "SELECT " + SELECT_CAMPOS + " FROM produto WHERE estoque <= 0 ORDER BY nome ASC";
+        try (Connection conn = ConnectionFactory.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                produtos.add(mapearProduto(rs));
+            }
+        } catch (SQLException e) {
+            System.err.println("[ERRO DB] Falha ao buscar produtos com estoque zerado: " + e.getMessage());
         }
         return produtos;
     }
@@ -177,6 +196,13 @@ public class ProdutoDAO {
         try { precoCusto = rs.getDouble("preco_custo"); } catch (SQLException ignored) {}
         double preco = rs.getDouble("preco");
         int estoque = rs.getInt("estoque");
+        int estoqueMinimo = 2;
+        try { estoqueMinimo = rs.getInt("estoque_minimo"); } catch (SQLException ignored) {}
+        String localizacao = "";
+        try {
+            String loc = rs.getString("localizacao");
+            if (loc != null) localizacao = loc.trim();
+        } catch (SQLException ignored) {}
 
         String ncm = "";
         try { ncm = rs.getString("ncm"); } catch (SQLException ignored) {}
@@ -200,7 +226,36 @@ public class ProdutoDAO {
             if (u != null && !u.trim().isEmpty()) unidade = u.trim();
         } catch (SQLException ignored) {}
 
-        return new Produto(id, codigoBarras, nome, precoCusto, preco, estoque, ncm, cest, cfop, origem, csosn, unidade);
+        return new Produto(id, codigoBarras, nome, precoCusto, preco, estoque, estoqueMinimo, localizacao, ncm, cest, cfop, origem, csosn, unidade);
+    }
+
+    public List<Produto> buscarProdutosCriticosOuEmFalta() {
+        List<Produto> produtos = new ArrayList<>();
+        String sql = "SELECT " + SELECT_CAMPOS + " FROM produto WHERE estoque <= estoque_minimo OR estoque <= 0 ORDER BY estoque ASC, nome ASC";
+        try (Connection conn = ConnectionFactory.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                produtos.add(mapearProduto(rs));
+            }
+        } catch (SQLException e) {
+            System.err.println("[ERRO DB] Falha ao buscar produtos críticos/em falta: " + e.getMessage());
+        }
+        return produtos;
+    }
+
+    public int contarProdutosCriticosOuEmFalta() {
+        String sql = "SELECT COUNT(*) FROM produto WHERE estoque <= estoque_minimo OR estoque <= 0";
+        try (Connection conn = ConnectionFactory.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            System.err.println("[ERRO DB] Falha ao contar produtos críticos: " + e.getMessage());
+        }
+        return 0;
     }
 
     public boolean excluir(int produtoId) {

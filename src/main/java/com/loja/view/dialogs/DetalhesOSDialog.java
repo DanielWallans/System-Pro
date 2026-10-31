@@ -82,13 +82,17 @@ public class DetalhesOSDialog extends JDialog {
         JPanel pnlHeaderLeft = new JPanel(new GridLayout(2, 1, 0, 3));
         pnlHeaderLeft.setOpaque(false);
 
+        String tagModalidade = osOriginal.isExterno() ? "🚗 [SERVIÇO EXTERNO] " : "🏢 ";
         String nomeAparelho = (equip != null ? equip.getTipo() + " " + equip.getMarca() + " " + equip.getModelo() : "Equipamento N/A");
-        JLabel lblTituloOS = new JLabel("Ordem de Serviço #" + osOriginal.getId() + " • " + nomeAparelho);
+        JLabel lblTituloOS = new JLabel("Ordem de Serviço #" + osOriginal.getId() + " • " + tagModalidade + nomeAparelho);
         lblTituloOS.setFont(UITheme.FONT_TITLE);
         lblTituloOS.setForeground(UITheme.tokens().getTextPrimary());
 
         String nomeCliente = (cliente != null ? cliente.getNome() + " (Tel: " + cliente.getTelefone() + ")" : "Cliente não informado");
-        JLabel lblSubCliente = new JLabel("Cliente: " + nomeCliente + "  |  Entrada: " + osOriginal.getDataEntrada().format(formatter));
+        String infoLocal = (osOriginal.isExterno() && !osOriginal.getEnderecoExterno().isEmpty())
+                ? "  |  Local da Visita: " + osOriginal.getEnderecoExterno()
+                : "";
+        JLabel lblSubCliente = new JLabel("Cliente: " + nomeCliente + "  |  Entrada: " + osOriginal.getDataEntrada().format(formatter) + infoLocal);
         lblSubCliente.setFont(UITheme.FONT_CAPTION);
         lblSubCliente.setForeground(UITheme.tokens().getTextSecondary());
 
@@ -136,7 +140,7 @@ public class DetalhesOSDialog extends JDialog {
         btnActions.setOpaque(false);
         JButton btnWhatsApp = UIComponents.criarBotaoSecundario("WhatsApp", () -> enviarWhatsApp(cliente, equip));
         this.btnPDF = UIComponents.criarBotaoSecundario("Gerar PDF", this::acaoGerarPDF);
-        this.btnComprovante = UIComponents.criarBotaoSecundario("Comprovante", this::acaoComprovante);
+        this.btnComprovante = UIComponents.criarBotaoSecundario("🖨️ Nota Térmica / PDF", this::acaoComprovante);
 
         this.btnFinalizarOS = new JButton("Finalizar OS e Pagar no PDV");
         this.btnFinalizarOS.setFont(btnFinalizarOS.getFont().deriveFont(Font.BOLD));
@@ -175,12 +179,17 @@ public class DetalhesOSDialog extends JDialog {
         pnl.setOpaque(false);
         pnl.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
-        // Coluna 1: Dados do Equipamento
-        JPanel pnlEquip = new JPanel(new GridLayout(equip != null ? 7 : 2, 1, 4, 4));
+        // Coluna 1: Dados do Equipamento / Atendimento
+        int rowsEquip = (equip != null ? 7 : 2) + (osOriginal.isExterno() ? 1 : 0);
+        JPanel pnlEquip = new JPanel(new GridLayout(rowsEquip, 1, 4, 4));
+        String titEquip = osOriginal.isExterno() ? " 🚗 Serviço Externo & Equipamentos " : " Dados do Equipamento & Vistoria ";
         pnlEquip.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(),
-                " Dados do Equipamento & Vistoria ", TitledBorder.LEFT, TitledBorder.TOP, new Font("SansSerif", Font.BOLD, 12)));
+                titEquip, TitledBorder.LEFT, TitledBorder.TOP, new Font("SansSerif", Font.BOLD, 12)));
+        if (osOriginal.isExterno()) {
+            pnlEquip.add(new JLabel("Local do Atendimento: " + (osOriginal.getEnderecoExterno().isEmpty() ? "Não informado" : osOriginal.getEnderecoExterno())));
+        }
         if (equip != null) {
-            pnlEquip.add(new JLabel("Aparelho: " + equip.getTipo() + " " + equip.getMarca() + " " + equip.getModelo()));
+            pnlEquip.add(new JLabel("Aparelho Principal: " + equip.getTipo() + " " + equip.getMarca() + " " + equip.getModelo()));
             pnlEquip.add(new JLabel("Nº de Série: " + equip.getNumeroSerie()));
             pnlEquip.add(new JLabel("Cor: " + equip.getCor()));
             pnlEquip.add(new JLabel("Avarias Visíveis: " + equip.getAvarias()));
@@ -196,8 +205,9 @@ public class DetalhesOSDialog extends JDialog {
         pnlDefeito.setOpaque(false);
 
         JPanel pnlDefeitoBox = new JPanel(new BorderLayout());
+        String titDefeito = osOriginal.isExterno() ? " Defeito Relatado / Serviço Solicitado " : " Defeito Relatado pelo Cliente ";
         pnlDefeitoBox.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(),
-                " Defeito Relatado pelo Cliente ", TitledBorder.LEFT, TitledBorder.TOP, new Font("SansSerif", Font.BOLD, 12)));
+                titDefeito, TitledBorder.LEFT, TitledBorder.TOP, new Font("SansSerif", Font.BOLD, 12)));
         JTextArea txtDefeito = new JTextArea(osOriginal.getProblemaRelatado(), 3, 30);
         txtDefeito.setEditable(false);
         txtDefeito.setLineWrap(true);
@@ -206,8 +216,9 @@ public class DetalhesOSDialog extends JDialog {
         pnlDefeitoBox.add(new JScrollPane(txtDefeito), BorderLayout.CENTER);
 
         JPanel pnlChecklistBox = new JPanel(new BorderLayout());
+        String titChecklist = osOriginal.isExterno() ? " Relatório / Checklist da Visita no Local " : " Checklist de Entrada ";
         pnlChecklistBox.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(),
-                " Checklist de Entrada ", TitledBorder.LEFT, TitledBorder.TOP, new Font("SansSerif", Font.BOLD, 12)));
+                titChecklist, TitledBorder.LEFT, TitledBorder.TOP, new Font("SansSerif", Font.BOLD, 12)));
         JTextArea txtCheck = new JTextArea(osOriginal.getChecklistEntrada() != null ? osOriginal.getChecklistEntrada() : "Nenhum checklist registrado.", 8, 30);
         txtCheck.setEditable(false);
         txtCheck.setFont(new Font("Monospaced", Font.PLAIN, 11));
@@ -751,10 +762,10 @@ public class DetalhesOSDialog extends JDialog {
         boolean isFinalizada = osOriginal.getStatus() != null &&
                 (osOriginal.getStatus().contains("Entregue") || osOriginal.getStatus().contains("Finalizado"));
         if (isFinalizada) {
-            Object[] opcoes = { "Gerar Comprovante de Entrega em PDF", "Visualizar Resumo na Tela", "Cancelar" };
+            Object[] opcoes = { "🖨️ Cupom Térmico (58mm / 80mm)", "📄 Gerar PDF Oficial (A4)", "Visualizar Texto na Tela", "Cancelar" };
             int esc = JOptionPane.showOptionDialog(
                     this,
-                    "Deseja gerar o Comprovante Oficial de Entrega em PDF ou visualizar em texto?",
+                    "Esta Ordem de Serviço está FINALIZADA.\nEscolha a forma de emissão do Comprovante de Entrega e Garantia:",
                     "Comprovante de Entrega - OS #" + osOriginal.getId(),
                     JOptionPane.YES_NO_CANCEL_OPTION,
                     JOptionPane.QUESTION_MESSAGE,
@@ -762,16 +773,17 @@ public class DetalhesOSDialog extends JDialog {
                     opcoes,
                     opcoes[0]);
             if (esc == 0) {
-                gerarComprovanteEntregaPDF(cliente, equip);
+                abrirComprovanteTermico(false);
             } else if (esc == 1) {
+                gerarComprovanteEntregaPDF(cliente, equip);
+            } else if (esc == 2) {
                 exibirComprovante(cliente, equip);
             }
         } else {
-            Object[] opcoes = { "Gerar Comprovante de Entrada em PDF (Assinatura)",
-                    "Visualizar Comprovante na Tela", "Cancelar" };
+            Object[] opcoes = { "🖨️ Cupom Térmico (58mm / 80mm)", "📄 Gerar PDF de Entrada (A4)", "Visualizar Texto na Tela", "Cancelar" };
             int esc = JOptionPane.showOptionDialog(
                     this,
-                    "Esta OS está com status: " + osOriginal.getStatus() + ".\nEscolha a opção desejada:",
+                    "Esta OS está com status: " + osOriginal.getStatus() + ".\nEscolha como deseja emitir o Comprovante de Entrada do Aparelho:",
                     "Comprovante da OS #" + osOriginal.getId(),
                     JOptionPane.YES_NO_CANCEL_OPTION,
                     JOptionPane.QUESTION_MESSAGE,
@@ -779,11 +791,20 @@ public class DetalhesOSDialog extends JDialog {
                     opcoes,
                     opcoes[0]);
             if (esc == 0) {
-                gerarComprovanteEntradaPDF(cliente, equip);
+                abrirComprovanteTermico(true);
             } else if (esc == 1) {
+                gerarComprovanteEntradaPDF(cliente, equip);
+            } else if (esc == 2) {
                 exibirComprovante(cliente, equip);
             }
         }
+    }
+
+    private void abrirComprovanteTermico(boolean modoEntrada) {
+        List<ServicoItem> servicos = osDAO.obterServicosOS(osOriginal.getId());
+        List<PecaItem> pecas = osDAO.obterPecasItensOS(osOriginal.getId());
+        ComprovanteOSDialog dialog = new ComprovanteOSDialog(this, osOriginal, cliente, equip, servicos, pecas, new com.loja.repository.CaixaDAO(), modoEntrada);
+        dialog.setVisible(true);
     }
 
     private void gerarComprovanteEntradaPDF(Cliente cliente, Equipamento equip) {

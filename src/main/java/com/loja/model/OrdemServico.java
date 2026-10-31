@@ -13,6 +13,8 @@ public class OrdemServico {
     private double valorTotal;
     private String checklistEntrada;
     private String observacoesFinais;
+    private String tipoAtendimento; // BALCAO, EXTERNO
+    private String enderecoExterno;
     private LocalDateTime dataEntrada;
     private LocalDateTime dataSaida;
 
@@ -21,23 +23,41 @@ public class OrdemServico {
         this(clienteId, equipamentoId, problemaRelatado, "", "");
     }
 
-    // Construtor para abertura com checklist e observações
+    // Construtor para abertura com checklist e observações (padrão balcão)
     public OrdemServico(int clienteId, int equipamentoId, String problemaRelatado, String checklistEntrada, String observacoesFinais) {
+        this(clienteId, equipamentoId, problemaRelatado, checklistEntrada, observacoesFinais, "BALCAO", "");
+    }
+
+    // Construtor para abertura com tipo de atendimento e endereço externo
+    public OrdemServico(int clienteId, int equipamentoId, String problemaRelatado, String checklistEntrada, 
+                        String observacoesFinais, String tipoAtendimento, String enderecoExterno) {
         this.clienteId = clienteId;
         this.equipamentoId = equipamentoId;
         this.problemaRelatado = problemaRelatado;
         this.checklistEntrada = checklistEntrada;
         this.observacoesFinais = observacoesFinais;
+        this.tipoAtendimento = (tipoAtendimento != null && !tipoAtendimento.trim().isEmpty()) ? tipoAtendimento.trim().toUpperCase() : "BALCAO";
+        this.enderecoExterno = enderecoExterno != null ? enderecoExterno.trim() : "";
         this.status = "Aguardando Orçamento";
         this.valorServico = 0.0;
         this.valorTotal = 0.0;
         this.dataEntrada = LocalDateTime.now();
     }
 
-    // Construtor completo
+    // Construtor completo legado (12 parâmetros)
     public OrdemServico(int id, int clienteId, int equipamentoId, String problemaRelatado,
                         String diagnosticoTecnico, String status, double valorServico, double valorTotal,
                         String checklistEntrada, String observacoesFinais,
+                        LocalDateTime dataEntrada, LocalDateTime dataSaida) {
+        this(id, clienteId, equipamentoId, problemaRelatado, diagnosticoTecnico, status, valorServico, valorTotal,
+                checklistEntrada, observacoesFinais, "BALCAO", "", dataEntrada, dataSaida);
+    }
+
+    // Construtor completo com tipo de atendimento e endereço (14 parâmetros)
+    public OrdemServico(int id, int clienteId, int equipamentoId, String problemaRelatado,
+                        String diagnosticoTecnico, String status, double valorServico, double valorTotal,
+                        String checklistEntrada, String observacoesFinais,
+                        String tipoAtendimento, String enderecoExterno,
                         LocalDateTime dataEntrada, LocalDateTime dataSaida) {
         this.id = id;
         this.clienteId = clienteId;
@@ -49,6 +69,8 @@ public class OrdemServico {
         this.valorTotal = valorTotal;
         this.checklistEntrada = checklistEntrada;
         this.observacoesFinais = observacoesFinais;
+        this.tipoAtendimento = (tipoAtendimento != null && !tipoAtendimento.trim().isEmpty()) ? tipoAtendimento.trim().toUpperCase() : "BALCAO";
+        this.enderecoExterno = enderecoExterno != null ? enderecoExterno.trim() : "";
         this.dataEntrada = dataEntrada;
         this.dataSaida = dataSaida;
     }
@@ -82,6 +104,18 @@ public class OrdemServico {
 
     public String getObservacoesFinais() { return observacoesFinais; }
     public void setObservacoesFinais(String observacoesFinais) { this.observacoesFinais = observacoesFinais; }
+
+    public String getTipoAtendimento() { return tipoAtendimento != null ? tipoAtendimento : "BALCAO"; }
+    public void setTipoAtendimento(String tipoAtendimento) { 
+        this.tipoAtendimento = (tipoAtendimento != null && !tipoAtendimento.trim().isEmpty()) ? tipoAtendimento.trim().toUpperCase() : "BALCAO"; 
+    }
+
+    public boolean isExterno() {
+        return "EXTERNO".equalsIgnoreCase(this.tipoAtendimento);
+    }
+
+    public String getEnderecoExterno() { return enderecoExterno != null ? enderecoExterno : ""; }
+    public void setEnderecoExterno(String enderecoExterno) { this.enderecoExterno = enderecoExterno; }
 
     public LocalDateTime getDataEntrada() { return dataEntrada; }
     public void setDataEntrada(LocalDateTime dataEntrada) { this.dataEntrada = dataEntrada; }

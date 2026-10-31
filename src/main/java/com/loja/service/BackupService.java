@@ -36,7 +36,11 @@ public class BackupService {
             "venda_pdv_itens",
             "venda_pagamento",
             "caixa_movimento",
-            "sangria"
+            "sangria",
+            "estoque_movimento",
+            "conta_pagar",
+            "funcionario",
+            "funcionario_despesa"
     };
 
     public static File gerarNomeArquivoPadrao(File diretorioDestino) {

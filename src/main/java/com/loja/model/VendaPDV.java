@@ -12,6 +12,9 @@ public class VendaPDV {
     private double valorLiquido;
     private String observacoes;
     private LocalDateTime dataHora;
+    private Integer clienteId;
+    private String clienteNome;
+    private String clienteCpf;
     private List<ItemVenda> itens = new ArrayList<>();
     private List<PagamentoItem> pagamentos = new ArrayList<>();
 
@@ -55,6 +58,15 @@ public class VendaPDV {
 
     public LocalDateTime getDataHora() { return dataHora; }
     public void setDataHora(LocalDateTime dataHora) { this.dataHora = dataHora; }
+
+    public Integer getClienteId() { return clienteId; }
+    public void setClienteId(Integer clienteId) { this.clienteId = clienteId; }
+
+    public String getClienteNome() { return clienteNome; }
+    public void setClienteNome(String clienteNome) { this.clienteNome = clienteNome; }
+
+    public String getClienteCpf() { return clienteCpf; }
+    public void setClienteCpf(String clienteCpf) { this.clienteCpf = clienteCpf; }
 
     public List<ItemVenda> getItens() { return itens; }
     public void setItens(List<ItemVenda> itens) { this.itens = itens; }
