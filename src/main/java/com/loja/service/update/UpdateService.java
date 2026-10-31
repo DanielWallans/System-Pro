@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
 public class UpdateService {
 
     public static final String VERSAO_ATUAL = "1.2.7";
-    public static final String DEFAULT_UPDATE_URL = "https://raw.githubusercontent.com/DanielWallans/SistemaLoja/master/versao.json";
+    public static final String DEFAULT_UPDATE_URL = "https://raw.githubusercontent.com/DanielWallans/System-Pro/master/versao.json";
 
     public static String getUpdateUrl() {
         File configFile = ConnectionFactory.getArquivoConfig();
