@@ -5,8 +5,8 @@
 # SYSTEM PRO
 ### Plataforma Corporativa de Gestão para Assistência Técnica e Varejo
 
-[![Desenvolvido por IT THECNICA](https://img.shields.io/badge/Desenvolvido%20por-IT%20THECNICA-FF6600?style=for-the-badge&logoColor=white)](https://github.com/DanielWallans)
-[![CEO Daniel Wallans](https://img.shields.io/badge/CEO-Daniel%20Wallans-003366?style=for-the-badge)](https://github.com/DanielWallans)
+[![Desenvolvido por IT THECNICA](https://img.shields.io/badge/Desenvolvido%20por-IT%20THECNICA-FF6600?style=for-the-badge&logoColor=white)]([https://github.com/DanielWallans](https://github.com/DanielWallans/ITTHECNICA-))
+[![CEO Daniel Wallans](https://img.shields.io/badge/CEO-Daniel%20Wallans-003366?style=for-the-badge)]()
 [![Versão](https://img.shields.io/badge/Vers%C3%A3o-1.2.7-0099FF?style=for-the-badge)](https://github.com/DanielWallans/System-Pro)
 [![Java 21](https://img.shields.io/badge/Java-21%20LTS-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Database](https://img.shields.io/badge/Banco%20de%20Dados-MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com/)
