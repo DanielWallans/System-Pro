@@ -42,6 +42,12 @@ public class EstoquePanel extends JPanel {
 
         initComponents();
         recarregarTabela();
+        inscreverEventos();
+    }
+
+    private void inscreverEventos() {
+        com.loja.event.EventBus.getInstance().subscribe(com.loja.event.events.EstoqueAlteradoEvent.class, e -> recarregarTabela());
+        com.loja.event.EventBus.getInstance().subscribe(com.loja.event.events.VendaRealizadaEvent.class, e -> recarregarTabela());
     }
 
     private void initComponents() {

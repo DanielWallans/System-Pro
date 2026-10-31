@@ -1,8 +1,10 @@
 package com.loja.app;
 
 import com.formdev.flatlaf.FlatDarkLaf;
+import com.loja.context.AppContext;
 import com.loja.repository.*;
 import com.loja.service.CaixaService;
+import com.loja.util.AppLogger;
 import com.loja.view.MainFrame;
 import com.loja.view.dialogs.ConfigBancoDialog;
 import com.loja.view.dialogs.LoginDialog;
@@ -12,7 +14,7 @@ import javax.swing.*;
 public class Main {
 
     public static void main(String[] args) {
-        // 1. Configurar Tema Moderno FlatLaf (Dark Grey / Graphite SaaS)
+        // 1. Configurar Tema Moderno FlatLaf (Dark Graphite SaaS)
         try {
             com.loja.view.theme.UITheme.setDark(true);
             com.loja.view.theme.ThemeTokens t = com.loja.view.theme.UITheme.tokens();
@@ -38,25 +40,24 @@ public class Main {
             UIManager.put("Component.focusColor", com.loja.view.theme.UITheme.withAlpha(t.getFocusRing(), 0.35f));
             UIManager.put("Component.focusedBorderColor", t.getFocusRing());
 
-            UIManager.put("Table.background", t.getBgCard()); // #1A1B1D
-            UIManager.put("Table.foreground", t.getTextPrimary()); // #F1F1F1
-            UIManager.put("Table.alternateRowColor", new java.awt.Color(32, 33, 36)); // #202124
-            UIManager.put("Table.gridColor", t.getBorderSubtle()); // #2A2C2F
-            UIManager.put("Table.selectionBackground", new java.awt.Color(41, 42, 45)); // #292A2D
+            UIManager.put("Table.background", t.getBgCard());
+            UIManager.put("Table.foreground", t.getTextPrimary());
+            UIManager.put("Table.alternateRowColor", new java.awt.Color(32, 33, 36));
+            UIManager.put("Table.gridColor", t.getBorderSubtle());
+            UIManager.put("Table.selectionBackground", new java.awt.Color(41, 42, 45));
             UIManager.put("Table.selectionForeground", t.getTextPrimary());
-            UIManager.put("TableHeader.background", t.getBgSidebar()); // #141516
-            UIManager.put("TableHeader.foreground", t.getTextSecondary()); // #A8A8A8
+            UIManager.put("TableHeader.background", t.getBgSidebar());
+            UIManager.put("TableHeader.foreground", t.getTextSecondary());
 
             UIManager.setLookAndFeel(new FlatDarkLaf());
         } catch (Exception ex) {
-            System.err.println("[AVISO] Não foi possível carregar o tema FlatLaf: " + ex.getMessage());
+            AppLogger.warn(Main.class, "Não foi possível carregar o tema FlatLaf: " + ex.getMessage());
         }
 
-        // 2. Exibir Splash Screen com logo transparente e barra de progresso animada
+        // 2. Exibir Splash Screen com animação fluida
         com.loja.view.SplashScreen splash = com.loja.view.SplashScreen.mostrar();
         splash.setStatus("Carregando módulos visuais...", 15);
 
-        // Executar inicialização em thread separada para manter a animação fluida a 60 FPS
         new Thread(() -> {
             try {
                 Thread.sleep(150);
@@ -66,35 +67,37 @@ public class Main {
                 boolean dbOk = ConnectionFactory.testarConexao();
 
                 if (dbOk) {
-                    splash.setStatus("Verificando estrutura e tabelas...", 60);
+                    splash.setStatus("Verificando estrutura e tabelas...", 55);
                     ConnectionFactory.criarTabela();
                     com.loja.service.AutoBackupService.getInstance().iniciar();
                 } else {
-                    splash.setStatus("Aguardando configuração do servidor...", 60);
+                    splash.setStatus("Aguardando configuração do servidor...", 55);
                 }
 
-                splash.setStatus("Inicializando serviços do sistema...", 85);
-                CaixaDAO caixaDAO = new CaixaDAO();
-                CaixaService caixaService = new CaixaService();
-                ProdutoDAO produtoDAO = new ProdutoDAO();
-                ClienteDAO clienteDAO = new ClienteDAO();
-                EquipamentoDAO equipamentoDAO = new EquipamentoDAO();
-                OrdemServicoDAO osDAO = new OrdemServicoDAO();
-                UsuarioDAO usuarioDAO = new UsuarioDAO();
+                // Inicializar Container de Dependências (IoC)
+                splash.setStatus("Inicializando arquitetura e serviços...", 80);
+                AppContext.getInstance().inicializar();
+
+                CaixaService caixaService = AppContext.getInstance().getCaixaService();
+                ProdutoDAO produtoDAO = AppContext.getInstance().getBean(ProdutoDAO.class);
+                ClienteDAO clienteDAO = AppContext.getInstance().getBean(ClienteDAO.class);
+                EquipamentoDAO equipamentoDAO = AppContext.getInstance().getBean(EquipamentoDAO.class);
+                OrdemServicoDAO osDAO = AppContext.getInstance().getBean(OrdemServicoDAO.class);
+                CaixaDAO caixaDAO = AppContext.getInstance().getBean(CaixaDAO.class);
+                UsuarioDAO usuarioDAO = AppContext.getInstance().getBean(UsuarioDAO.class);
 
                 if (dbOk) {
                     caixaService.abrirCaixa(100.00);
                 }
 
                 splash.setStatus("Sistema pronto!", 100);
-                Thread.sleep(300); // Breve momento para o usuário ver a barra completa em 100%
+                Thread.sleep(250);
 
                 SwingUtilities.invokeLater(() -> {
                     splash.fechar();
 
                     boolean statusDb = dbOk;
                     if (!statusDb) {
-                        // Se a conexão falhar ou for o primeiro acesso, exibe painel de configuração
                         try {
                             ConfigBancoDialog dlg = new ConfigBancoDialog(null);
                             dlg.setVisible(true);
@@ -105,18 +108,19 @@ public class Main {
                                 caixaService.abrirCaixa(100.00);
                             }
                         } catch (Exception ex) {
-                            System.err.println("[ERRO] Ao abrir painel de configuração: " + ex.getMessage());
+                            AppLogger.error(Main.class, "Erro ao abrir painel de configuração de banco", ex);
                         }
                     }
 
                     final boolean isDbConectado = statusDb;
 
-                    // 3. Exibir Tela de Autenticação / Login
+                    // 3. Autenticação de Usuário
                     LoginDialog login = new LoginDialog(null, usuarioDAO);
                     login.setVisible(true);
 
                     if (login.isAutenticado()) {
-                        MainFrame frame = new MainFrame(clienteDAO, equipamentoDAO, osDAO, produtoDAO, caixaDAO, caixaService,
+                        MainFrame frame = new MainFrame(clienteDAO, equipamentoDAO, osDAO, produtoDAO, caixaDAO,
+                                caixaService,
                                 usuarioDAO, isDbConectado);
                         frame.setVisible(true);
                     } else {
@@ -125,9 +129,9 @@ public class Main {
                 });
 
             } catch (Exception ex) {
-                ex.printStackTrace();
-                SwingUtilities.invokeLater(() -> splash.fechar());
+                AppLogger.error(Main.class, "Erro crítico durante o ciclo de inicialização", ex);
+                SwingUtilities.invokeLater(splash::fechar);
             }
-        }).start();
+        }, "App-Bootstrap-Thread").start();
     }
 }

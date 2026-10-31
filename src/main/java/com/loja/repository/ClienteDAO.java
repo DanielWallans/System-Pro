@@ -8,8 +8,9 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import com.loja.model.Cliente;
+import com.loja.repository.contract.ClienteRepository;
 
-public class ClienteDAO {
+public class ClienteDAO implements ClienteRepository {
 
     public boolean salvar(Cliente cliente) {
         if (cliente.getId() > 0) {

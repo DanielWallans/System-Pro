@@ -9,8 +9,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.loja.model.Produto;
+import com.loja.repository.contract.ProdutoRepository;
 
-public class ProdutoDAO {
+public class ProdutoDAO implements ProdutoRepository {
 
     private static final String SELECT_CAMPOS = "id, codigo_barras, nome, preco_custo, preco, estoque, estoque_minimo, localizacao, ncm, cest, cfop, origem, csosn_cst, unidade";
 

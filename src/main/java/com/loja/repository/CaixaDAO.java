@@ -16,8 +16,9 @@ import com.loja.model.CaixaMovimento;
 import com.loja.model.CaixaSessao;
 import com.loja.model.PagamentoItem;
 import com.loja.model.ResumoFechamentoCaixa;
+import com.loja.repository.contract.CaixaRepository;
 
-public class CaixaDAO {
+public class CaixaDAO implements CaixaRepository {
 
     public double obterSaldo() {
         String sql = "SELECT saldo FROM caixa WHERE id = 1";

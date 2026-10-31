@@ -1,13 +1,14 @@
 package com.loja.repository;
 
 import com.loja.model.EstoqueMovimento;
+import com.loja.repository.contract.EstoqueMovimentoRepository;
 
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-public class EstoqueMovimentoDAO {
+public class EstoqueMovimentoDAO implements EstoqueMovimentoRepository {
 
     private static final String SQL_INSERT = 
             "INSERT INTO estoque_movimento (produto_id, nome_produto, tipo, quantidade, " +

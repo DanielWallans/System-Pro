@@ -2,6 +2,7 @@ package com.loja.repository;
 
 import com.loja.model.PerfilUsuario;
 import com.loja.model.Usuario;
+import com.loja.repository.contract.UsuarioRepository;
 import com.loja.service.SegurancaService;
 
 import java.sql.Connection;
@@ -12,7 +13,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
-public class UsuarioDAO {
+public class UsuarioDAO implements UsuarioRepository {
 
     public Usuario autenticar(String login, String senhaPlana) {
         String sql = "SELECT id, nome, login, senha_hash, perfil, ativo, data_cadastro FROM usuario WHERE login = ? AND ativo = TRUE";

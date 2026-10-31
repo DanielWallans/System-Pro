@@ -8,8 +8,9 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import com.loja.model.Equipamento;
+import com.loja.repository.contract.EquipamentoRepository;
 
-public class EquipamentoDAO {
+public class EquipamentoDAO implements EquipamentoRepository {
 
     public boolean salvar(Equipamento equipamento) {
         if (equipamento.getId() > 0) {

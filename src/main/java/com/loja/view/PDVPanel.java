@@ -994,6 +994,9 @@ public class PDVPanel extends JPanel {
             boolean sucesso = vendaPDVDAO.finalizarVenda(venda);
             if (sucesso) {
                 try {
+                    com.loja.event.EventBus.getInstance().publish(new com.loja.event.events.VendaRealizadaEvent(venda));
+                    com.loja.event.EventBus.getInstance().publish(new com.loja.event.events.CaixaAlteradoEvent(
+                        com.loja.event.events.CaixaAlteradoEvent.TipoMovimento.VENDA_PDV, venda.getValorTotal(), "Venda #" + venda.getId()));
                     com.loja.service.AutoBackupService.getInstance().notificarAcaoCritica("Venda #" + venda.getId());
                 } catch (Exception ignored) {}
                 this.ultimaVendaConcluida = venda;

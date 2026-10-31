@@ -4,6 +4,7 @@ import com.loja.model.ContaPagar;
 import com.loja.model.Funcionario;
 import com.loja.model.FuncionarioDespesa;
 import com.loja.model.ResumoDRE;
+import com.loja.repository.contract.FinanceiroRepository;
 
 import java.sql.*;
 import java.time.LocalDate;
@@ -14,7 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class FinanceiroDAO {
+public class FinanceiroDAO implements FinanceiroRepository {
 
     // ==========================================
     // 1. GESTÃO DE CONTAS A PAGAR / DESPESAS

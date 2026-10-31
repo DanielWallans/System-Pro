@@ -12,8 +12,9 @@ import com.loja.model.HistoricoOS;
 import com.loja.model.OrdemServico;
 import com.loja.model.PecaItem;
 import com.loja.model.ServicoItem;
+import com.loja.repository.contract.OrdemServicoRepository;
 
-public class OrdemServicoDAO {
+public class OrdemServicoDAO implements OrdemServicoRepository {
 
     public boolean abrirOS(OrdemServico os) {
         String sql = "INSERT INTO ordem_servico (cliente_id, equipamento_id, problema_relatado, status, valor_servico, valor_total, checklist_entrada, observacoes_finais, data_entrada, tipo_atendimento, endereco_externo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
